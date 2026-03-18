@@ -3,19 +3,20 @@ const AUDIO_EXT = /\.(mp3|m4b|m4a|ogg|opus|flac|aac|wav)$/i;
 // Patterns that indicate a video/non-audio folder — skip these
 const VIDEO_KW = /\b(bluray|blu-ray|1080p|720p|480p|2160p|4k|x264|x265|xvid|hevc|avc|hdtv|web-dl|webrip|bdrip|dvdrip|remux|hdr|dolby|atmos|dts)\b/i;
 
-export async function handler(event) {
-  const ULTRA_HOST   = process.env.ULTRA_HOST;
-  const ULTRA_USER   = process.env.ULTRA_USER;
-  const ULTRA_PASS   = process.env.ULTRA_PASS;
-  const PROXY_SECRET = process.env.PROXY_SECRET;
+// Cache at module level — env vars don't change between invocations
+const ULTRA_HOST   = process.env.ULTRA_HOST;
+const PROXY_SECRET = process.env.PROXY_SECRET;
+const credentials  = process.env.ULTRA_USER && process.env.ULTRA_PASS
+  ? Buffer.from(`${process.env.ULTRA_USER}:${process.env.ULTRA_PASS}`).toString("base64")
+  : null;
 
+export async function handler(event) {
   const token = event.queryStringParameters?.t;
   if (PROXY_SECRET && token !== PROXY_SECRET) {
     return { statusCode: 401, body: "Unauthorized" };
   }
 
   const BASE        = `https://${ULTRA_HOST}/downloads/deluge`;
-  const credentials = Buffer.from(`${ULTRA_USER}:${ULTRA_PASS}`).toString("base64");
   const authHeaders = {
     Authorization: `Basic ${credentials}`,
     "User-Agent": "Mozilla/5.0",

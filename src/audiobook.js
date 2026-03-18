@@ -212,6 +212,7 @@ function abSetLibrarySort(sort) {
 }
 
 function abGetFilteredSortedBooks() {
+  // Build progress map once — reused by renderAbLibrary to avoid double reads
   const pMap = {};
   BOOKS.forEach(b => { pMap[b.id] = abGetProgress(b.id); });
 
@@ -228,18 +229,17 @@ function abGetFilteredSortedBooks() {
   filtered.sort((a, b) => {
     if (abLibrarySort === "az") return a.title.localeCompare(b.title);
     if (abLibrarySort === "za") return b.title.localeCompare(a.title);
-    // Recently Played — null lastPlayed goes to bottom
     const pa = pMap[a.id]?.lastPlayed ?? 0;
     const pb = pMap[b.id]?.lastPlayed ?? 0;
     return pb - pa;
   });
 
-  return filtered;
+  return { books: filtered, pMap };
 }
 
 function renderAbLibrary() {
   const listEl = document.getElementById("ab-library");
-  const books = abGetFilteredSortedBooks();
+  const { books, pMap } = abGetFilteredSortedBooks();
 
   if (books.length === 0) {
     listEl.innerHTML = `<p class="ab-library-empty">No books in this category.</p>`;
@@ -247,7 +247,7 @@ function renderAbLibrary() {
   }
 
   listEl.innerHTML = books.map(book => {
-    const progress = abGetProgress(book.id);
+    const progress = pMap[book.id];
     let badge = "";
 
     if (progress?.finished) {
@@ -346,12 +346,9 @@ function loadAbFile(seekTo = 0) {
   if (!file) return;
 
   // Reset display immediately so stale duration from previous book doesn't linger
-  const durEl = document.getElementById("ab-duration");
-  const curEl = document.getElementById("ab-current-time");
-  const scrub = document.getElementById("ab-scrub");
-  if (durEl) durEl.textContent = "--:--";
-  if (curEl) curEl.textContent = "0:00";
-  if (scrub) scrub.value = 0;
+  if (abDurationEl)    abDurationEl.textContent = "--:--";
+  if (abCurrentTimeEl) abCurrentTimeEl.textContent = "0:00";
+  if (abScrubEl)       abScrubEl.value = 0;
 
   abHideAudioError();
 
@@ -371,8 +368,8 @@ function loadAbFile(seekTo = 0) {
 
   const onMeta = () => {
     // Update duration display as soon as metadata arrives (don't wait for playback)
-    if (durEl && abAudio.duration && !isNaN(abAudio.duration)) {
-      durEl.textContent = formatDuration(Math.floor(abAudio.duration));
+    if (abDurationEl && abAudio.duration && !isNaN(abAudio.duration)) {
+      abDurationEl.textContent = formatDuration(Math.floor(abAudio.duration));
     }
     if (seekTo > 0) abAudio.currentTime = seekTo;
     clearTimeout(abMetaTimeout);
@@ -536,25 +533,32 @@ abAudio.addEventListener("pause", () => {
   abSaveProgress();
 });
 
+// Cache DOM references for timeupdate (fires ~4x/sec — avoid repeated lookups)
+const abCurrentTimeEl = document.getElementById("ab-current-time");
+const abDurationEl    = document.getElementById("ab-duration");
+const abScrubEl       = document.getElementById("ab-scrub");
+
+// Throttle timeupdate to ~1/sec — sufficient for time display, saves DOM writes
+let abLastTimeUpdate = 0;
 abAudio.addEventListener("timeupdate", () => {
+  const now = performance.now();
+  if (now - abLastTimeUpdate < 1000) return;
+  abLastTimeUpdate = now;
+
   const current  = abAudio.currentTime;
   const duration = abAudio.duration || 0;
 
-  const currentEl = document.getElementById("ab-current-time");
-  const durEl     = document.getElementById("ab-duration");
-  const scrub     = document.getElementById("ab-scrub");
+  if (abCurrentTimeEl) abCurrentTimeEl.textContent = formatDuration(Math.floor(current));
+  if (abDurationEl)    abDurationEl.textContent     = formatDuration(Math.floor(duration));
+  if (abScrubEl)       abScrubEl.value              = duration > 0 ? (current / duration) * 100 : 0;
 
-  if (currentEl) currentEl.textContent = formatDuration(Math.floor(current));
-  if (durEl)     durEl.textContent     = formatDuration(Math.floor(duration));
-  if (scrub)     scrub.value           = duration > 0 ? (current / duration) * 100 : 0;
-
-  // MediaSession position state
-  if ("mediaSession" in navigator && abAudio.duration && !isNaN(abAudio.duration)) {
+  // MediaSession position state (throttled along with the rest)
+  if ("mediaSession" in navigator && duration && !isNaN(duration)) {
     try {
       navigator.mediaSession.setPositionState({
-        duration:     abAudio.duration,
+        duration,
         playbackRate: abAudio.playbackRate,
-        position:     abAudio.currentTime,
+        position:     current,
       });
     } catch {}
   }
@@ -607,7 +611,7 @@ function updateAbPlayPause() {
 }
 
 // Scrub bar interaction
-document.getElementById("ab-scrub").addEventListener("input", e => {
+abScrubEl.addEventListener("input", e => {
   if (abAudio.duration) {
     abAudio.currentTime = (parseFloat(e.target.value) / 100) * abAudio.duration;
   }
@@ -622,6 +626,32 @@ document.addEventListener("visibilitychange", () => {
 // FEATURE 5: MEDIASESSION (lock screen controls + cover art)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Register action handlers once — they reference current state via closures over
+// globals (abFileIndex, abCurrentBook), so they stay correct without re-registration.
+if ("mediaSession" in navigator) {
+  navigator.mediaSession.setActionHandler("play",          () => abAudio.play());
+  navigator.mediaSession.setActionHandler("pause",         () => abAudio.pause());
+  navigator.mediaSession.setActionHandler("seekbackward",  () => abSkip(-30));
+  navigator.mediaSession.setActionHandler("seekforward",   () => abSkip(30));
+  navigator.mediaSession.setActionHandler("previoustrack", () => {
+    if (abFileIndex > 0) {
+      abFileIndex--;
+      renderAbPlayer();
+      loadAbFile(0);
+      abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
+    }
+  });
+  navigator.mediaSession.setActionHandler("nexttrack", () => {
+    if (abCurrentBook && abFileIndex < abCurrentBook.files.length - 1) {
+      abFileIndex++;
+      renderAbPlayer();
+      loadAbFile(0);
+      abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
+    }
+  });
+}
+
+// Only update metadata (not action handlers) on each play
 function abUpdateMediaSession(book, meta) {
   if (!("mediaSession" in navigator)) return;
 
@@ -636,29 +666,4 @@ function abUpdateMediaSession(book, meta) {
     album:   chapter?.chapter || "",
     artwork,
   });
-
-  const prevChapter = () => {
-    if (abFileIndex > 0) {
-      abFileIndex--;
-      renderAbPlayer();
-      loadAbFile(0);
-      abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
-    }
-  };
-
-  const nextChapter = () => {
-    if (abFileIndex < abCurrentBook.files.length - 1) {
-      abFileIndex++;
-      renderAbPlayer();
-      loadAbFile(0);
-      abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
-    }
-  };
-
-  navigator.mediaSession.setActionHandler("play",          () => abAudio.play());
-  navigator.mediaSession.setActionHandler("pause",         () => abAudio.pause());
-  navigator.mediaSession.setActionHandler("seekbackward",  () => abSkip(-30));
-  navigator.mediaSession.setActionHandler("seekforward",   () => abSkip(30));
-  navigator.mediaSession.setActionHandler("previoustrack", prevChapter);
-  navigator.mediaSession.setActionHandler("nexttrack",     nextChapter);
 }

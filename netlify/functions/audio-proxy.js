@@ -3,18 +3,24 @@
 // The browser's <audio> element makes multiple Range requests automatically — this is normal.
 // MP3 streams fine with small chunks; some .m4b (AAC-in-MP4) files need a larger
 // initial header/metadata chunk to decode.
+
+// Pre-compute chunk sizes to avoid regex per request
+const M4B_CHUNK = 3 * 1024 * 1024;  // 3 MB
+const DEFAULT_CHUNK = 512 * 1024;    // 512 KB
+const M4B_RE = /\.m4b($|\?|#)/i;
+
 function getChunkSize(url) {
-  // Use a bigger chunk for m4b so the player can find required MP4 boxes early.
-  if (/\.m4b($|\?|#)/i.test(url)) return 3 * 1024 * 1024; // 3 MB
-  return 512 * 1024; // 512 KB for everything else
+  return M4B_RE.test(url) ? M4B_CHUNK : DEFAULT_CHUNK;
 }
 
-export async function handler(event) {
-  const ULTRA_HOST   = process.env.ULTRA_HOST;
-  const ULTRA_USER   = process.env.ULTRA_USER;
-  const ULTRA_PASS   = process.env.ULTRA_PASS;
-  const PROXY_SECRET = process.env.PROXY_SECRET;
+// Cache credentials at module level — env vars don't change between invocations
+const ULTRA_HOST   = process.env.ULTRA_HOST;
+const PROXY_SECRET = process.env.PROXY_SECRET;
+const credentials  = process.env.ULTRA_USER && process.env.ULTRA_PASS
+  ? Buffer.from(`${process.env.ULTRA_USER}:${process.env.ULTRA_PASS}`).toString("base64")
+  : null;
 
+export async function handler(event) {
   const token = event.queryStringParameters?.t;
   if (PROXY_SECRET && token !== PROXY_SECRET) {
     return { statusCode: 401, body: "Unauthorized" };
@@ -28,7 +34,6 @@ export async function handler(event) {
   }
 
   try {
-    const credentials = Buffer.from(`${ULTRA_USER}:${ULTRA_PASS}`).toString("base64");
     const rawRange = event.headers["range"] || event.headers["Range"];
     const chunkSize = getChunkSize(url);
     const range = clampRange(rawRange, chunkSize);

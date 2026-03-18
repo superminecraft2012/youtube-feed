@@ -457,37 +457,6 @@ header h1 {
   margin-left: auto;
 }
 
-.ab-card {
-  background: var(--surface);
-  border-radius: var(--radius);
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.15s, background 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.ab-card:active { transform: scale(0.96); }
-
-.ab-cover {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  display: block;
-}
-
-.ab-cover-placeholder {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  background: #222;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 48px;
-}
-
-.ab-card-info {
-  padding: 8px 10px 10px;
-}
 
 .ab-title {
   font-size: 13px;
@@ -507,16 +476,6 @@ header h1 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.ab-resume {
-  display: inline-block;
-  font-size: 10px;
-  background: var(--accent);
-  color: #fff;
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-weight: 600;
 }
 
 /* ── Player view ─────────────────────────────────────────────────────────────── */
@@ -552,24 +511,6 @@ header h1 {
   max-width: 480px;
   margin: 0 auto;
   width: 100%;
-}
-
-.ab-player-cover-wrap {
-  width: min(220px, 60vw);
-  aspect-ratio: 1 / 1;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-}
-
-.ab-player-cover-placeholder {
-  width: 100%;
-  height: 100%;
-  background: #222;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 72px;
 }
 
 .ab-player-title {
@@ -829,15 +770,6 @@ header h1 {
   cursor: pointer;
 }
 
-/* ── Player: cover image ─────────────────────────────────────────────────────── */
-.ab-player-cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  border-radius: 12px;
-}
-
 /* ── Player: bookmark button (smaller, same row as controls) ─────────────────── */
 .ab-ctrl-btn.ab-ctrl-sm {
   width: 44px;
@@ -847,7 +779,6 @@ header h1 {
   border-color: var(--border);
 }
 
-/* ── Bookmarks section ───────────────────────────────────────────────────────── */
 /* ── Audio error message ─────────────────────────────────────────────────────── */
 .ab-audio-error {
   width: 100%;

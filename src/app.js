@@ -5,6 +5,8 @@ let expandedId = null;     // currently expanded card videoId
 let pendingVideoId = null; // video waiting on reason modal
 
 // ─── Data fetching ─────────────────────────────────────────────────────────────
+const rssParser = new DOMParser(); // reuse across all RSS parses
+
 async function fetchFeed(handle) {
   const res = await fetch(`/.netlify/functions/rss?handle=${handle}`);
   if (!res.ok) throw new Error(`Failed to fetch ${handle}`);
@@ -13,8 +15,7 @@ async function fetchFeed(handle) {
 }
 
 function parseRSS(xml, handle) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xml, "application/xml");
+  const doc = rssParser.parseFromString(xml, "application/xml");
   return [...doc.querySelectorAll("entry")].map(entry => ({
     id: entry.querySelector("videoId")?.textContent,
     title: entry.querySelector("title")?.textContent,
@@ -172,10 +173,18 @@ function selectReason(reason) {
 function logReason(reason, videoId) {
   const log = JSON.parse(localStorage.getItem("watchLog") || "[]");
   log.push({ videoId, reason, time: Date.now() });
-  // Keep only the last 90 days to avoid unbounded growth
-  const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
-  const trimmed = log.filter(e => e.time > cutoff);
-  localStorage.setItem("watchLog", JSON.stringify(trimmed));
+
+  // Trim stale entries at most once per day to avoid filtering the entire array on every watch
+  const lastTrim = Number(localStorage.getItem("watchLogLastTrim") || 0);
+  const now = Date.now();
+  if (now - lastTrim > 86400000) {
+    const cutoff = now - 90 * 24 * 60 * 60 * 1000;
+    const trimmed = log.filter(e => e.time > cutoff);
+    localStorage.setItem("watchLog", JSON.stringify(trimmed));
+    localStorage.setItem("watchLogLastTrim", String(now));
+  } else {
+    localStorage.setItem("watchLog", JSON.stringify(log));
+  }
 }
 
 function renderTally() {
@@ -209,14 +218,7 @@ function deepLink(videoId) {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function formatDuration(seconds) {
-  if (!seconds || isNaN(seconds)) return "";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
+// formatDuration and escapeHtml are in helpers.js (shared with audiobook.js)
 
 function timeAgo(date) {
   const diff = (Date.now() - date) / 1000;
@@ -225,14 +227,6 @@ function timeAgo(date) {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
   return date.toLocaleDateString();
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 loadFeed();
