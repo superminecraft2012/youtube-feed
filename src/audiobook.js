@@ -266,7 +266,7 @@ function renderAbLibrary() {
         alt=""
         loading="lazy"
         ${coverSrc ? "" : "hidden"}
-        onerror="this.hidden=true; document.getElementById('ab-cover-placeholder-${escapeHtml(book.id)}')?.hidden=false;"
+        onerror="this.hidden=true; var el=document.getElementById('ab-cover-placeholder-${escapeHtml(book.id)}'); if(el) el.hidden=false;"
       />
       <div
         id="ab-cover-placeholder-${escapeHtml(book.id)}"
