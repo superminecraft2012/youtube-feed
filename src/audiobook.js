@@ -137,7 +137,54 @@ function switchTab(tab) {
     watchTally.hidden  = true;
     headerTitle.textContent = "My Books";
     refreshBtn.hidden  = true;
+    loadLibrary();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DYNAMIC LIBRARY LOADING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let abLibraryLoaded = false;
+
+async function loadLibrary(forceRefresh = false) {
+  // Already loaded this session and not forcing a refresh
+  if (abLibraryLoaded && !forceRefresh) {
     renderAbLibrary();
+    return;
+  }
+
+  const grid = document.getElementById("ab-library");
+  grid.innerHTML = `<p class="ab-library-empty ab-loading">Scanning library…</p>`;
+
+  // Try session cache first (survives tab switches, cleared on reload)
+  if (!forceRefresh) {
+    try {
+      const cached = sessionStorage.getItem("ab-library-cache");
+      if (cached) {
+        BOOKS = JSON.parse(cached);
+        abLibraryLoaded = true;
+        renderAbLibrary();
+        return;
+      }
+    } catch {}
+  }
+
+  try {
+    const params = new URLSearchParams({ t: PROXY_TOKEN });
+    const res = await fetch(`/.netlify/functions/library?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    BOOKS = await res.json();
+    sessionStorage.setItem("ab-library-cache", JSON.stringify(BOOKS));
+    abLibraryLoaded = true;
+    renderAbLibrary();
+  } catch (err) {
+    grid.innerHTML = `
+      <div class="ab-library-error">
+        <p>Failed to load library.</p>
+        <p class="ab-error-detail">${escapeHtml(err.message)}</p>
+        <button onclick="loadLibrary(true)">Retry</button>
+      </div>`;
   }
 }
 
