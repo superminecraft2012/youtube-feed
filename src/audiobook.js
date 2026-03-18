@@ -9,11 +9,8 @@ let abMetaCache = {}; // bookId → meta object (in-memory, also persisted to lo
 
 const abAudio = document.getElementById("ab-audio");
 
-// ─── Proxy URL ────────────────────────────────────────────────────────────────
-function abProxyUrl(rawUrl) {
-  const params = new URLSearchParams({ url: rawUrl, t: PROXY_TOKEN });
-  return `/.netlify/functions/audio-proxy?${params}`;
-}
+// Audio URLs are served directly from ultra.cc.
+// The Service Worker (sw.js) intercepts these requests and injects Basic Auth.
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PERSISTENCE
@@ -370,7 +367,7 @@ function loadAbFile(seekTo = 0) {
   const file = abCurrentBook.files[abFileIndex];
   if (!file) return;
 
-  abAudio.src = abProxyUrl(file.url);
+  abAudio.src = file.url; // direct URL — SW injects auth header
   abAudio.load();
 
   const onMeta = () => {
