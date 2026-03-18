@@ -6,6 +6,7 @@ let abLibraryFilter = "all";
 let abLibrarySort = "lastPlayed";
 let abBookmarksExpanded = false;
 let abMetaCache = {}; // bookId → meta object (in-memory, also persisted to localStorage)
+let abMetaTimeout = null;
 
 const abAudio = document.getElementById("ab-audio");
 
@@ -386,6 +387,18 @@ function loadAbFile(seekTo = 0) {
   if (scrub) scrub.value = 0;
 
   abHideAudioError();
+
+  clearTimeout(abMetaTimeout);
+  // If metadata never loads (common with non-streamable .m4b), show a helpful message.
+  abMetaTimeout = setTimeout(() => {
+    const duration = abAudio.duration;
+    if (!duration || isNaN(duration)) {
+      abShowAudioError(
+        "⚠️ Can't load audio metadata. Some .m4b files require re-muxing (moov atom at start) or converting to MP3."
+      );
+    }
+  }, 12000);
+
   abAudio.src = abProxyUrl(file.url);
   abAudio.load();
 
@@ -395,6 +408,7 @@ function loadAbFile(seekTo = 0) {
       durEl.textContent = formatDuration(Math.floor(abAudio.duration));
     }
     if (seekTo > 0) abAudio.currentTime = seekTo;
+    clearTimeout(abMetaTimeout);
     abAudio.removeEventListener("loadedmetadata", onMeta);
   };
   abAudio.addEventListener("loadedmetadata", onMeta);
@@ -585,6 +599,8 @@ abAudio.addEventListener("error", () => {
   const msg   = codes[err?.code] || `Unknown error (${err?.code})`;
   console.error("Audio error", err?.code, err?.message, abAudio.src);
   abShowAudioError(msg);
+  clearTimeout(abMetaTimeout);
+  abMetaTimeout = null;
 });
 
 function abShowAudioError(msg) {

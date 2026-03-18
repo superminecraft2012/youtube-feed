@@ -1,7 +1,13 @@
 // Streams audio from ultra.cc with Basic Auth injected server-side.
-// Responses are capped at CHUNK_SIZE bytes to stay within Netlify's 6 MB body limit.
+// Responses are capped to stay within Netlify's 6 MB response size limit.
 // The browser's <audio> element makes multiple Range requests automatically — this is normal.
-const CHUNK_SIZE = 512 * 1024; // 512 KB per response
+// MP3 streams fine with small chunks; some .m4b (AAC-in-MP4) files need a larger
+// initial header/metadata chunk to decode.
+function getChunkSize(url) {
+  // Use a bigger chunk for m4b so the player can find required MP4 boxes early.
+  if (/\.m4b($|\?|#)/i.test(url)) return 3 * 1024 * 1024; // 3 MB
+  return 512 * 1024; // 512 KB for everything else
+}
 
 export async function handler(event) {
   const ULTRA_HOST   = process.env.ULTRA_HOST;
@@ -23,8 +29,9 @@ export async function handler(event) {
 
   try {
     const credentials = Buffer.from(`${ULTRA_USER}:${ULTRA_PASS}`).toString("base64");
-    const rawRange    = event.headers["range"] || event.headers["Range"];
-    const range       = clampRange(rawRange, CHUNK_SIZE);
+    const rawRange = event.headers["range"] || event.headers["Range"];
+    const chunkSize = getChunkSize(url);
+    const range = clampRange(rawRange, chunkSize);
 
     const upstream = await fetch(url, {
       headers: {
