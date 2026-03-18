@@ -133,7 +133,9 @@ function switchTab(tab) {
     watchTally.hidden  = !watchTally.textContent.trim();
     headerTitle.textContent = "My Feed";
     refreshBtn.hidden  = false;
-    abSaveProgress();
+    // Make sure the playing book bubbles to the top when we come back.
+    // (Sort-by "Recently Played" relies on `lastPlayed`.)
+    abSaveProgress({ lastPlayed: Date.now() });
   } else {
     feedSection.hidden = true;
     abSection.hidden   = false;
@@ -288,7 +290,8 @@ async function openBook(bookId) {
 }
 
 function closePlayer() {
-  abSaveProgress();
+  // Mark as recently played when user returns to the library.
+  abSaveProgress({ lastPlayed: Date.now() });
   abStopSaveTimer();
   document.getElementById("ab-player-view").hidden  = true;
   document.getElementById("ab-library-view").hidden = false;
