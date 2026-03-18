@@ -29,11 +29,11 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Header */
+/* ── Header ──────────────────────────────────────────────────────────────────── */
 header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   background: rgba(15, 15, 15, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -72,7 +72,63 @@ header h1 {
   color: var(--text);
 }
 
-/* Status bar */
+/* ── Feature 1: Filter pills ─────────────────────────────────────────────────── */
+#filter-bar {
+  position: sticky;
+  top: 53px; /* height of header */
+  z-index: 15;
+  background: rgba(15, 15, 15, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+#filter-bar[hidden] { display: none; }
+
+#filter-pills {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#filter-pills::-webkit-scrollbar { display: none; }
+
+.pill {
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ── Watch tally ─────────────────────────────────────────────────────────────── */
+#watch-tally {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+#watch-tally[hidden] { display: none; }
+
+/* ── Status bar ──────────────────────────────────────────────────────────────── */
 #status {
   text-align: center;
   font-size: 13px;
@@ -86,35 +142,29 @@ header h1 {
   color: #f9a825;
 }
 
-#status[hidden] {
-  display: none;
-}
+#status[hidden] { display: none; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
 
-/* Feed grid */
+/* ── Feed grid ───────────────────────────────────────────────────────────────── */
 #feed {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--card-gap);
-  padding: 12px 12px;
+  padding: 12px;
   max-width: 900px;
   margin: 0 auto;
 }
 
 @media (min-width: 540px) {
-  #feed {
-    grid-template-columns: 1fr 1fr;
-  }
+  #feed { grid-template-columns: 1fr 1fr; }
 }
 
 @media (min-width: 800px) {
-  #feed {
-    grid-template-columns: repeat(3, 1fr);
-  }
+  #feed { grid-template-columns: repeat(3, 1fr); }
 }
 
 .empty {
@@ -125,21 +175,27 @@ header h1 {
   padding: 48px 0;
 }
 
-/* Video card */
+/* ── Feature 3: Video card (collapsed + expanded) ────────────────────────────── */
 .card {
   background: var(--surface);
   border-radius: var(--radius);
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.15s, background 0.15s;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.25s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .card:active {
   transform: scale(0.97);
-  background: var(--surface-hover);
 }
 
+.card.expanded {
+  background: #1f1f1f;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
+/* Thumbnail */
 .thumb-wrap {
   position: relative;
   width: 100%;
@@ -153,8 +209,27 @@ header h1 {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.3s ease;
 }
 
+.card.expanded .thumb-wrap img {
+  transform: scale(1.03);
+}
+
+.duration-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Info section */
 .info {
   padding: 10px 12px 12px;
 }
@@ -163,12 +238,18 @@ header h1 {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
+  margin-bottom: 5px;
+  color: var(--text);
+  /* Clamp to 2 lines when collapsed */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  margin-bottom: 5px;
-  color: var(--text);
+}
+
+.card.expanded .title {
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 
 .meta {
@@ -179,15 +260,131 @@ header h1 {
   text-overflow: ellipsis;
 }
 
-/* Skeleton shimmer while loading */
-.skeleton {
-  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-  border-radius: var(--radius);
+/* Collapsed: hide description + watch button */
+.description,
+.watch-btn {
+  display: none;
+  opacity: 0;
 }
 
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+/* Expanded: reveal them with a fade */
+.card.expanded .description {
+  display: block;
+  opacity: 1;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 8px;
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.card.expanded .watch-btn {
+  display: block;
+  opacity: 1;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  animation: fadeIn 0.2s ease forwards;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card.expanded .watch-btn:active {
+  opacity: 0.85;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Feature 2: Reason modal ─────────────────────────────────────────────────── */
+#modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 30;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#modal-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#reason-modal {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: #1c1c1e;
+  border-radius: 20px 20px 0 0;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+#reason-modal.visible {
+  transform: translateY(0);
+}
+
+.modal-question {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+.modal-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.modal-options button {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.modal-options button:active {
+  background: #333;
+  transform: scale(0.96);
+}
+
+.modal-cancel {
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.modal-cancel:active {
+  background: var(--surface);
 }

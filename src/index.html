@@ -21,9 +21,28 @@
     <button class="refresh-btn" onclick="location.reload()" aria-label="Refresh">↻ Refresh</button>
   </header>
 
+  <div id="filter-bar" hidden>
+    <div id="filter-pills"></div>
+  </div>
+
+  <div id="watch-tally" hidden></div>
+
   <p id="status" hidden></p>
 
   <main id="feed"></main>
+
+  <!-- Reason modal -->
+  <div id="modal-backdrop" onclick="closeModal()"></div>
+  <div id="reason-modal" role="dialog" aria-modal="true" aria-label="Why are you watching this?">
+    <p class="modal-question">Why are you watching this?</p>
+    <div class="modal-options">
+      <button onclick="selectReason('Learning')">📚 Learning</button>
+      <button onclick="selectReason('Entertainment')">😂 Entertainment</button>
+      <button onclick="selectReason('Background')">🎵 Background</button>
+      <button onclick="selectReason('Habit')">😔 Habit</button>
+    </div>
+    <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+  </div>
 
   <script src="channels.js"></script>
   <script src="app.js"></script>

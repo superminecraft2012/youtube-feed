@@ -1,3 +1,10 @@
+// ─── State ────────────────────────────────────────────────────────────────────
+let allVideos = [];
+let activeFilter = null;   // null = show all; string = handle to filter
+let expandedId = null;     // currently expanded card videoId
+let pendingVideoId = null; // video waiting on reason modal
+
+// ─── Data fetching ─────────────────────────────────────────────────────────────
 async function fetchFeed(handle) {
   const res = await fetch(`/.netlify/functions/rss?handle=${handle}`);
   if (!res.ok) throw new Error(`Failed to fetch ${handle}`);
@@ -14,6 +21,8 @@ function parseRSS(xml, handle) {
     channel: entry.querySelector("author name")?.textContent,
     published: new Date(entry.querySelector("published")?.textContent),
     thumbnail: entry.querySelector("thumbnail")?.getAttribute("url"),
+    duration: entry.querySelector("duration")?.getAttribute("seconds"),
+    description: entry.querySelector("description")?.textContent?.trim() || "",
     handle
   }));
 }
@@ -30,7 +39,7 @@ async function loadFeed() {
   );
 
   const failed = results.filter(r => r.status === "rejected").length;
-  const videos = results
+  allVideos = results
     .filter(r => r.status === "fulfilled")
     .flatMap(r => r.value)
     .filter(v => v.id && v.title)
@@ -38,12 +47,14 @@ async function loadFeed() {
 
   statusEl.hidden = true;
 
-  if (videos.length === 0) {
+  if (allVideos.length === 0) {
     feed.innerHTML = `<p class="empty">No videos found. ${failed} channel(s) failed to load.</p>`;
     return;
   }
 
-  renderFeed(videos);
+  renderFilterPills();
+  renderFeed();
+  renderTally();
 
   if (failed > 0) {
     statusEl.textContent = `${failed} channel(s) failed to load`;
@@ -52,26 +63,150 @@ async function loadFeed() {
   }
 }
 
-function renderFeed(videos) {
+// ─── Feature 1: Channel filter pills ──────────────────────────────────────────
+function renderFilterPills() {
+  const bar = document.getElementById("filter-bar");
+  const pillsEl = document.getElementById("filter-pills");
+
+  // Only show channels that actually returned videos
+  const seenHandles = new Set(allVideos.map(v => v.handle));
+  const channels = CHANNELS
+    .filter(c => seenHandles.has(c.handle))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const allPill = `<button class="pill active" data-handle="" onclick="filterByChannel('')">All</button>`;
+  const channelPills = channels.map(c =>
+    `<button class="pill" data-handle="${escapeHtml(c.handle)}" onclick="filterByChannel('${escapeHtml(c.handle)}')">${escapeHtml(c.name)}</button>`
+  ).join("");
+
+  pillsEl.innerHTML = allPill + channelPills;
+  bar.hidden = false;
+}
+
+function filterByChannel(handle) {
+  // Empty string = "All"
+  activeFilter = handle || null;
+
+  document.querySelectorAll(".pill").forEach(pill => {
+    pill.classList.toggle("active", pill.dataset.handle === (handle || ""));
+  });
+
+  // Collapse any expanded card when filter changes
+  expandedId = null;
+  renderFeed();
+}
+
+// ─── Feature 3: Card expand/collapse ──────────────────────────────────────────
+function handleCardTap(videoId) {
+  if (expandedId === videoId) return; // Watch button handles opening
+  if (expandedId) {
+    const prev = document.querySelector(`[data-id="${expandedId}"]`);
+    if (prev) prev.classList.remove("expanded");
+  }
+  expandedId = videoId;
+  const card = document.querySelector(`[data-id="${videoId}"]`);
+  if (card) card.classList.add("expanded");
+}
+
+// Collapse card when tapping outside
+document.getElementById("feed").addEventListener("click", e => {
+  if (!e.target.closest(".card") && expandedId) {
+    const card = document.querySelector(`[data-id="${expandedId}"]`);
+    if (card) card.classList.remove("expanded");
+    expandedId = null;
+  }
+});
+
+// ─── Render ────────────────────────────────────────────────────────────────────
+function renderFeed() {
   const feed = document.getElementById("feed");
-  feed.innerHTML = videos.map(v => `
-    <div class="card" onclick="openVideo('${escapeHtml(v.id)}')">
+  const videos = activeFilter
+    ? allVideos.filter(v => v.handle === activeFilter)
+    : allVideos;
+
+  if (videos.length === 0) {
+    feed.innerHTML = `<p class="empty">No videos for this channel.</p>`;
+    return;
+  }
+
+  feed.innerHTML = videos.map(v => {
+    const durationStr = v.duration ? formatDuration(Number(v.duration)) : "";
+    const descSnippet = v.description ? v.description.slice(0, 200) + (v.description.length > 200 ? "…" : "") : "";
+    return `
+    <div class="card" data-id="${escapeHtml(v.id)}" onclick="handleCardTap('${escapeHtml(v.id)}')">
       <div class="thumb-wrap">
         <img src="${escapeHtml(v.thumbnail || '')}" alt="" loading="lazy" />
+        ${durationStr ? `<span class="duration-badge">${escapeHtml(durationStr)}</span>` : ""}
       </div>
       <div class="info">
         <p class="title">${escapeHtml(v.title || '')}</p>
         <p class="meta">${escapeHtml(v.channel || '')} · ${timeAgo(v.published)}</p>
+        ${descSnippet ? `<p class="description">${escapeHtml(descSnippet)}</p>` : ""}
+        <button class="watch-btn" onclick="event.stopPropagation(); openVideo('${escapeHtml(v.id)}')">▶ Watch</button>
       </div>
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
 }
 
+// ─── Feature 2: Reason modal ───────────────────────────────────────────────────
 function openVideo(videoId) {
+  pendingVideoId = videoId;
+  document.getElementById("modal-backdrop").classList.add("visible");
+  document.getElementById("reason-modal").classList.add("visible");
+}
+
+function closeModal() {
+  document.getElementById("modal-backdrop").classList.remove("visible");
+  document.getElementById("reason-modal").classList.remove("visible");
+  pendingVideoId = null;
+}
+
+function selectReason(reason) {
+  const videoId = pendingVideoId;
+  logReason(reason, videoId);
+  closeModal();
+  deepLink(videoId);
+  renderTally();
+}
+
+function logReason(reason, videoId) {
+  const log = JSON.parse(sessionStorage.getItem("watchLog") || "[]");
+  log.push({ videoId, reason, time: Date.now() });
+  sessionStorage.setItem("watchLog", JSON.stringify(log));
+}
+
+function renderTally() {
+  const log = JSON.parse(sessionStorage.getItem("watchLog") || "[]");
+  if (log.length === 0) return;
+
+  const counts = {};
+  log.forEach(entry => { counts[entry.reason] = (counts[entry.reason] || 0) + 1; });
+
+  const labels = { Learning: "📚", Entertainment: "😂", Background: "🎵", Habit: "😔" };
+  const parts = Object.entries(counts)
+    .map(([reason, n]) => `${labels[reason] || ""} ${n} ${reason}`)
+    .join(" · ");
+
+  const tallyEl = document.getElementById("watch-tally");
+  tallyEl.textContent = `Today: ${parts}`;
+  tallyEl.hidden = false;
+}
+
+function deepLink(videoId) {
   window.location = `youtube://www.youtube.com/watch?v=${videoId}`;
   setTimeout(() => {
     window.location = `https://www.youtube.com/watch?v=${videoId}`;
   }, 1500);
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+function formatDuration(seconds) {
+  if (!seconds || isNaN(seconds)) return "";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 function timeAgo(date) {
