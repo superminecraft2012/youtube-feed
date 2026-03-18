@@ -257,9 +257,22 @@ function renderAbLibrary() {
 
     const meta     = abMetaCache[book.id];
     const coverSrc = meta?.cover || book.cover;
-    const coverHtml = coverSrc
-      ? `<img class="ab-cover" src="${escapeHtml(coverSrc)}" alt="" loading="lazy" />`
-      : `<div class="ab-cover ab-cover-placeholder">📖</div>`;
+    // Always render both elements so we can fill covers later when metadata arrives.
+    const coverHtml = `
+      <img
+        id="ab-cover-img-${escapeHtml(book.id)}"
+        class="ab-cover"
+        src="${escapeHtml(coverSrc || "")}"
+        alt=""
+        loading="lazy"
+        ${coverSrc ? "" : "hidden"}
+        onerror="this.hidden=true; document.getElementById('ab-cover-placeholder-${escapeHtml(book.id)}')?.hidden=false;"
+      />
+      <div
+        id="ab-cover-placeholder-${escapeHtml(book.id)}"
+        class="ab-cover-placeholder${coverSrc ? " hidden" : ""}"
+      >📖</div>
+    `;
 
     return `
       <div class="ab-card" onclick="openBook('${escapeHtml(book.id)}')">
@@ -271,6 +284,9 @@ function renderAbLibrary() {
         </div>
       </div>`;
   }).join("");
+
+  // Background-fill covers for the first few visible cards.
+  abPrefetchCovers(books.slice(0, 12));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -308,6 +324,41 @@ function closePlayer() {
   document.getElementById("ab-player-view").hidden  = true;
   document.getElementById("ab-library-view").hidden = false;
   renderAbLibrary();
+}
+
+// ─── Library cover prefilling ───────────────────────────────────────────────
+let abCoverPrefetchInFlight = new Set();
+
+function abSetCardCover(bookId, coverSrc) {
+  const img = document.getElementById(`ab-cover-img-${bookId}`);
+  const ph  = document.getElementById(`ab-cover-placeholder-${bookId}`);
+  if (!img || !ph) return;
+  img.src = coverSrc;
+  img.hidden = false;
+  ph.hidden = true;
+}
+
+function abPrefetchCovers(books) {
+  // Small concurrency cap so we don't hammer Netlify/Google Books.
+  const MAX_CONCURRENT = 4;
+  const candidates = books
+    .filter(b => !abMetaCache[b.id] && !abCoverPrefetchInFlight.has(b.id))
+    .slice(0, 10);
+
+  const toStart = candidates.slice(0, MAX_CONCURRENT);
+  toStart.forEach(book => {
+    abCoverPrefetchInFlight.add(book.id);
+    abFetchMeta(book)
+      .then(meta => {
+        if (meta?.cover) {
+          abMetaCache[book.id] = meta;
+          abSetCardCover(book.id, meta.cover);
+        }
+      })
+      .finally(() => {
+        abCoverPrefetchInFlight.delete(book.id);
+      });
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
