@@ -556,6 +556,11 @@ abAudio.addEventListener("timeupdate", () => {
   }
 });
 
+abAudio.addEventListener("error", () => {
+  const err = abAudio.error;
+  console.error("Audio error", err?.code, err?.message);
+});
+
 abAudio.addEventListener("ended", () => {
   abStopSaveTimer();
   if (abFileIndex < abCurrentBook.files.length - 1) {

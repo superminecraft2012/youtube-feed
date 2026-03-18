@@ -6,36 +6,37 @@ export async function handler(event) {
   }
 
   try {
-    const q = encodeURIComponent(
-      `intitle:${title}${author ? `+inauthor:${author}` : ""}`
-    );
-    const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1&langRestrict=en`
-    );
-    const data = await res.json();
+    // Try with author first; fall back to title-only if no results
+    const queries = author
+      ? [`intitle:${title}+inauthor:${author}`, `intitle:${title}`]
+      : [`intitle:${title}`];
 
-    const volume = data.items?.[0]?.volumeInfo;
+    let volume = null;
+    for (const q of queries) {
+      const res  = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=1`
+      );
+      const data = await res.json();
+      volume = data.items?.[0]?.volumeInfo;
+      if (volume) break;
+    }
+
     if (!volume) {
       return {
         statusCode: 200,
-        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=2592000" },
+        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=86400" },
         body: JSON.stringify(null),
       };
     }
 
-    // Upgrade to HTTPS and get the largest available thumbnail
-    let cover =
-      volume.imageLinks?.extraLarge ||
-      volume.imageLinks?.large ||
-      volume.imageLinks?.medium ||
-      volume.imageLinks?.thumbnail ||
-      volume.imageLinks?.smallThumbnail ||
-      null;
+    // thumbnail is the most reliably available size; zoom=1 is stable
+    let cover = volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail || null;
 
     if (cover) {
+      // Upgrade to HTTPS and strip the curl border effect
       cover = cover.replace(/^http:\/\//, "https://").replace(/&edge=curl/g, "");
-      // Request a bigger image from Google's CDN
-      cover = cover.replace(/zoom=\d/, "zoom=3");
+      // zoom=1 → zoom=2 gives a larger image without breaking the URL
+      cover = cover.replace(/zoom=1/, "zoom=2");
     }
 
     return {
