@@ -2,7 +2,7 @@
 // Set PROXY_TOKEN to match the PROXY_SECRET environment variable in Netlify.
 // It's sent as a URL query param (the only option for native <audio> elements).
 // For a personal private tool this is acceptable — it stops bots, not a determined attacker.
-const PROXY_TOKEN = "REPLACE_ME";
+const PROXY_TOKEN = "bcf54359503b7799d1850602f5b78fee";
 
 // Base URL of your ultra.cc server
 const ULTRA_BASE = "https://bennen011.nova.usbx.me/downloads/deluge";
