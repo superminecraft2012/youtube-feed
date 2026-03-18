@@ -18,21 +18,77 @@
 <body>
   <header>
     <span class="logo">▶</span>
-    <h1>My Feed</h1>
+    <h1 id="header-title">My Feed</h1>
     <button class="refresh-btn" onclick="location.reload()" aria-label="Refresh">↻ Refresh</button>
   </header>
 
-  <div id="filter-bar" hidden>
-    <div id="filter-pills"></div>
+  <!-- ── Feed tab content ─────────────────────────────────────────── -->
+  <div id="section-feed">
+    <div id="filter-bar" hidden>
+      <div id="filter-pills"></div>
+    </div>
+
+    <div id="watch-tally" hidden></div>
+
+    <p id="status" hidden></p>
+
+    <main id="feed"></main>
   </div>
 
-  <div id="watch-tally" hidden></div>
+  <!-- ── Audiobooks tab content ───────────────────────────────────── -->
+  <div id="section-audiobooks" hidden>
 
-  <p id="status" hidden></p>
+    <!-- Library view -->
+    <div id="ab-library-view">
+      <div id="ab-library"></div>
+    </div>
 
-  <main id="feed"></main>
+    <!-- Player view -->
+    <div id="ab-player-view" hidden>
+      <div class="ab-player-header">
+        <button class="ab-back-btn" onclick="closePlayer()">← Library</button>
+      </div>
 
-  <!-- Reason modal -->
+      <div class="ab-player-body">
+        <div class="ab-player-cover-wrap">
+          <div class="ab-player-cover-placeholder">📖</div>
+        </div>
+
+        <p id="ab-player-title" class="ab-player-title"></p>
+        <p id="ab-player-author" class="ab-player-author"></p>
+
+        <select id="ab-chapter-select" class="ab-chapter-select" onchange="abSelectChapter()" hidden></select>
+
+        <!-- Scrub bar -->
+        <div class="ab-scrub-row">
+          <span id="ab-current-time" class="ab-time">0:00</span>
+          <input id="ab-scrub" class="ab-scrub" type="range" min="0" max="100" step="0.1" value="0" />
+          <span id="ab-duration" class="ab-time">0:00</span>
+        </div>
+
+        <!-- Main controls -->
+        <div class="ab-controls">
+          <button class="ab-ctrl-btn" onclick="abSkip(-30)" title="Back 30s">−30</button>
+          <button id="ab-play-btn" class="ab-ctrl-btn ab-play" onclick="abTogglePlay()">▶</button>
+          <button class="ab-ctrl-btn" onclick="abSkip(30)" title="Forward 30s">+30</button>
+        </div>
+
+        <!-- Speed selector -->
+        <div class="ab-speed-row">
+          <button class="ab-speed-btn active" data-speed="1"    onclick="abSetSpeed(1)">1×</button>
+          <button class="ab-speed-btn"        data-speed="1.25" onclick="abSetSpeed(1.25)">1.25×</button>
+          <button class="ab-speed-btn"        data-speed="1.5"  onclick="abSetSpeed(1.5)">1.5×</button>
+          <button class="ab-speed-btn"        data-speed="2"    onclick="abSetSpeed(2)">2×</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Hidden audio element — keeps playing when navigating within the PWA -->
+  <audio id="ab-audio" preload="metadata"></audio>
+
+  <!-- ── Reason modal (feed tab) ──────────────────────────────────── -->
   <div id="modal-backdrop" onclick="closeModal()"></div>
   <div id="reason-modal" role="dialog" aria-modal="true" aria-label="Why are you watching this?">
     <p class="modal-question">Why are you watching this?</p>
@@ -45,7 +101,21 @@
     <button class="modal-cancel" onclick="closeModal()">Cancel</button>
   </div>
 
+  <!-- ── Bottom tab bar ───────────────────────────────────────────── -->
+  <nav id="tab-bar">
+    <button class="tab-btn active" data-tab="feed"       onclick="switchTab('feed')">
+      <span class="tab-icon">▶</span>
+      <span class="tab-label">Feed</span>
+    </button>
+    <button class="tab-btn"        data-tab="audiobooks" onclick="switchTab('audiobooks')">
+      <span class="tab-icon">🎧</span>
+      <span class="tab-label">Books</span>
+    </button>
+  </nav>
+
   <script src="channels.js"></script>
+  <script src="audiobooks.js"></script>
   <script src="app.js"></script>
+  <script src="audiobook.js"></script>
 </body>
 </html>
