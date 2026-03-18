@@ -236,15 +236,15 @@ function abGetFilteredSortedBooks() {
 }
 
 function renderAbLibrary() {
-  const grid  = document.getElementById("ab-library");
+  const listEl = document.getElementById("ab-library");
   const books = abGetFilteredSortedBooks();
 
   if (books.length === 0) {
-    grid.innerHTML = `<p class="ab-library-empty">No books in this category.</p>`;
+    listEl.innerHTML = `<p class="ab-library-empty">No books in this category.</p>`;
     return;
   }
 
-  grid.innerHTML = books.map(book => {
+  listEl.innerHTML = books.map(book => {
     const progress = abGetProgress(book.id);
     let badge = "";
 
@@ -255,39 +255,15 @@ function renderAbLibrary() {
       badge = `<span class="ab-badge ab-badge-progress">${escapeHtml(ch)} — ${formatDuration(Math.floor(progress.position))}</span>`;
     }
 
-    const meta     = abMetaCache[book.id];
-    const coverSrc = meta?.cover || book.cover;
-    // Always render both elements so we can fill covers later when metadata arrives.
-    const coverHtml = `
-      <img
-        id="ab-cover-img-${escapeHtml(book.id)}"
-        class="ab-cover"
-        src="${escapeHtml(coverSrc || "")}"
-        alt=""
-        loading="lazy"
-        ${coverSrc ? "" : "hidden"}
-        onerror="this.hidden=true; var el=document.getElementById('ab-cover-placeholder-${escapeHtml(book.id)}'); if(el) el.hidden=false;"
-      />
-      <div
-        id="ab-cover-placeholder-${escapeHtml(book.id)}"
-        class="ab-cover-placeholder"
-        ${coverSrc ? "hidden" : ""}
-      >📖</div>
-    `;
-
     return `
-      <div class="ab-card" onclick="openBook('${escapeHtml(book.id)}')">
-        ${coverHtml}
-        <div class="ab-card-info">
+      <div class="ab-list-row" onclick="openBook('${escapeHtml(book.id)}')">
+        <div class="ab-list-text">
           <p class="ab-title">${escapeHtml(book.title)}</p>
           <p class="ab-author">${escapeHtml(book.author)}</p>
-          ${badge}
         </div>
+        <div class="ab-row-badge">${badge}</div>
       </div>`;
   }).join("");
-
-  // Background-fill covers for the first few visible cards.
-  abPrefetchCovers(books.slice(0, 12));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -309,14 +285,6 @@ async function openBook(bookId) {
 
   renderAbPlayer();
   loadAbFile(progress?.position ?? 0);
-
-  // Fetch cover art in background; update UI when ready
-  abFetchMeta(book).then(meta => {
-    if (meta?.cover) {
-      abMetaCache[book.id] = meta;
-      abUpdatePlayerCover(meta.cover);
-    }
-  });
 }
 
 function closePlayer() {
@@ -325,41 +293,6 @@ function closePlayer() {
   document.getElementById("ab-player-view").hidden  = true;
   document.getElementById("ab-library-view").hidden = false;
   renderAbLibrary();
-}
-
-// ─── Library cover prefilling ───────────────────────────────────────────────
-let abCoverPrefetchInFlight = new Set();
-
-function abSetCardCover(bookId, coverSrc) {
-  const img = document.getElementById(`ab-cover-img-${bookId}`);
-  const ph  = document.getElementById(`ab-cover-placeholder-${bookId}`);
-  if (!img || !ph) return;
-  img.src = coverSrc;
-  img.hidden = false;
-  ph.hidden = true;
-}
-
-function abPrefetchCovers(books) {
-  // Small concurrency cap so we don't hammer Netlify/Google Books.
-  const MAX_CONCURRENT = 4;
-  const candidates = books
-    .filter(b => !abMetaCache[b.id] && !abCoverPrefetchInFlight.has(b.id))
-    .slice(0, 10);
-
-  const toStart = candidates.slice(0, MAX_CONCURRENT);
-  toStart.forEach(book => {
-    abCoverPrefetchInFlight.add(book.id);
-    abFetchMeta(book)
-      .then(meta => {
-        if (meta?.cover) {
-          abMetaCache[book.id] = meta;
-          abSetCardCover(book.id, meta.cover);
-        }
-      })
-      .finally(() => {
-        abCoverPrefetchInFlight.delete(book.id);
-      });
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -372,10 +305,6 @@ function renderAbPlayer() {
 
   document.getElementById("ab-player-title").textContent  = book.title;
   document.getElementById("ab-player-author").textContent = book.author;
-
-  // Cover
-  const coverSrc = abMetaCache[book.id]?.cover || book.cover;
-  abUpdatePlayerCover(coverSrc);
 
   // Speed — restore saved value
   const speed = progress?.speed ?? 1;
@@ -407,23 +336,6 @@ function renderAbPlayer() {
   renderAbBookmarks();
 
   updateAbPlayPause();
-}
-
-function abUpdatePlayerCover(src) {
-  const img         = document.getElementById("ab-player-cover-img");
-  const placeholder = document.getElementById("ab-player-cover-placeholder");
-  if (src) {
-    img.onerror = () => {
-      img.hidden         = true;
-      placeholder.hidden = false;
-    };
-    img.src            = src;
-    img.hidden         = false;
-    placeholder.hidden = true;
-  } else {
-    img.hidden         = true;
-    placeholder.hidden = false;
-  }
 }
 
 function loadAbFile(seekTo = 0) {
