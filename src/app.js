@@ -170,17 +170,26 @@ function selectReason(reason) {
 }
 
 function logReason(reason, videoId) {
-  const log = JSON.parse(sessionStorage.getItem("watchLog") || "[]");
+  const log = JSON.parse(localStorage.getItem("watchLog") || "[]");
   log.push({ videoId, reason, time: Date.now() });
-  sessionStorage.setItem("watchLog", JSON.stringify(log));
+  // Keep only the last 90 days to avoid unbounded growth
+  const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const trimmed = log.filter(e => e.time > cutoff);
+  localStorage.setItem("watchLog", JSON.stringify(trimmed));
 }
 
 function renderTally() {
-  const log = JSON.parse(sessionStorage.getItem("watchLog") || "[]");
-  if (log.length === 0) return;
+  const log = JSON.parse(localStorage.getItem("watchLog") || "[]");
+
+  // Only count entries from today
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayLog = log.filter(e => e.time >= todayStart.getTime());
+
+  if (todayLog.length === 0) return;
 
   const counts = {};
-  log.forEach(entry => { counts[entry.reason] = (counts[entry.reason] || 0) + 1; });
+  todayLog.forEach(entry => { counts[entry.reason] = (counts[entry.reason] || 0) + 1; });
 
   const labels = { Learning: "📚", Entertainment: "😂", Background: "🎵", Habit: "😔" };
   const parts = Object.entries(counts)
