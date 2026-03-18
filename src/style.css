@@ -687,3 +687,234 @@ header h1 {
   border-color: var(--text-muted);
   color: var(--text);
 }
+
+/* ── Library toolbar: filter pills + sort ────────────────────────────────────── */
+.ab-library-toolbar {
+  position: sticky;
+  top: calc(53px + env(safe-area-inset-top));
+  z-index: 15;
+  background: rgba(15, 15, 15, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.ab-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ab-filter-row::-webkit-scrollbar { display: none; }
+
+.ab-filter-pill {
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ab-filter-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.ab-sort-select {
+  flex-shrink: 0;
+  margin-left: auto;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* ── Library card badges ─────────────────────────────────────────────────────── */
+.ab-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-top: 2px;
+}
+
+.ab-badge-progress {
+  background: var(--accent);
+  color: #fff;
+}
+
+.ab-badge-done {
+  background: #2e7d32;
+  color: #a5d6a7;
+}
+
+.ab-library-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 48px 16px;
+  grid-column: 1 / -1;
+}
+
+/* ── Player: cover image ─────────────────────────────────────────────────────── */
+.ab-player-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 12px;
+}
+
+/* ── Player: bookmark button (smaller, same row as controls) ─────────────────── */
+.ab-ctrl-btn.ab-ctrl-sm {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+/* ── Bookmarks section ───────────────────────────────────────────────────────── */
+.ab-bookmarks-section {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ab-bookmarks-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ab-toggle-arrow {
+  margin-left: auto;
+  font-size: 18px;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.ab-bookmarks-toggle.expanded .ab-toggle-arrow {
+  transform: rotate(90deg);
+}
+
+#ab-bookmarks-list {
+  border-top: 1px solid var(--border);
+}
+
+.ab-bookmarks-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 14px;
+  text-align: center;
+}
+
+.ab-bookmark-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ab-bookmark-item:last-child { border-bottom: none; }
+.ab-bookmark-item:active     { background: var(--surface-hover); }
+
+.ab-bookmark-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ab-bookmark-pos {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ab-bookmark-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ab-bookmark-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.ab-bm-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 6px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+}
+
+.ab-bm-btn:active { background: var(--surface-hover); }
+
+/* ── Mark as Finished button ─────────────────────────────────────────────────── */
+.ab-finish-btn {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ab-finish-btn:active { background: var(--surface-hover); }
+
+.ab-finish-btn.finished {
+  background: rgba(46, 125, 50, 0.2);
+  border-color: #2e7d32;
+  color: #a5d6a7;
+}

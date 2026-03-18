@@ -27,11 +27,8 @@
     <div id="filter-bar" hidden>
       <div id="filter-pills"></div>
     </div>
-
     <div id="watch-tally" hidden></div>
-
     <p id="status" hidden></p>
-
     <main id="feed"></main>
   </div>
 
@@ -40,6 +37,22 @@
 
     <!-- Library view -->
     <div id="ab-library-view">
+
+      <!-- Filter pills + sort -->
+      <div class="ab-library-toolbar">
+        <div class="ab-filter-row">
+          <button class="ab-filter-pill active" data-filter="all"        onclick="abSetLibraryFilter('all')">All</button>
+          <button class="ab-filter-pill"        data-filter="inprogress" onclick="abSetLibraryFilter('inprogress')">In Progress</button>
+          <button class="ab-filter-pill"        data-filter="unstarted"  onclick="abSetLibraryFilter('unstarted')">Unstarted</button>
+          <button class="ab-filter-pill"        data-filter="finished"   onclick="abSetLibraryFilter('finished')">Finished</button>
+          <select id="ab-sort-select" class="ab-sort-select" onchange="abSetLibrarySort(this.value)">
+            <option value="lastPlayed">Recently Played</option>
+            <option value="az">A → Z</option>
+            <option value="za">Z → A</option>
+          </select>
+        </div>
+      </div>
+
       <div id="ab-library"></div>
     </div>
 
@@ -50,13 +63,17 @@
       </div>
 
       <div class="ab-player-body">
+
+        <!-- Cover art -->
         <div class="ab-player-cover-wrap">
-          <div class="ab-player-cover-placeholder">📖</div>
+          <img id="ab-player-cover-img" class="ab-player-cover-img" src="" alt="" hidden />
+          <div id="ab-player-cover-placeholder" class="ab-player-cover-placeholder">📖</div>
         </div>
 
-        <p id="ab-player-title" class="ab-player-title"></p>
+        <p id="ab-player-title"  class="ab-player-title"></p>
         <p id="ab-player-author" class="ab-player-author"></p>
 
+        <!-- Chapter selector (multi-file books only) -->
         <select id="ab-chapter-select" class="ab-chapter-select" onchange="abSelectChapter()" hidden></select>
 
         <!-- Scrub bar -->
@@ -66,26 +83,41 @@
           <span id="ab-duration" class="ab-time">0:00</span>
         </div>
 
-        <!-- Main controls -->
+        <!-- Main controls: bookmark | back 30 | play/pause | fwd 30 -->
         <div class="ab-controls">
+          <button id="ab-bookmark-btn" class="ab-ctrl-btn ab-ctrl-sm" onclick="abAddBookmark()" title="Bookmark current position">🔖</button>
           <button class="ab-ctrl-btn" onclick="abSkip(-30)" title="Back 30s">−30</button>
           <button id="ab-play-btn" class="ab-ctrl-btn ab-play" onclick="abTogglePlay()">▶</button>
           <button class="ab-ctrl-btn" onclick="abSkip(30)" title="Forward 30s">+30</button>
         </div>
 
-        <!-- Speed selector -->
+        <!-- Speed selector — includes 0.75× -->
         <div class="ab-speed-row">
+          <button class="ab-speed-btn"        data-speed="0.75" onclick="abSetSpeed(0.75)">0.75×</button>
           <button class="ab-speed-btn active" data-speed="1"    onclick="abSetSpeed(1)">1×</button>
           <button class="ab-speed-btn"        data-speed="1.25" onclick="abSetSpeed(1.25)">1.25×</button>
           <button class="ab-speed-btn"        data-speed="1.5"  onclick="abSetSpeed(1.5)">1.5×</button>
           <button class="ab-speed-btn"        data-speed="2"    onclick="abSetSpeed(2)">2×</button>
         </div>
+
+        <!-- Bookmarks section -->
+        <div class="ab-bookmarks-section">
+          <button class="ab-bookmarks-toggle" onclick="abToggleBookmarks()">
+            🔖 Bookmarks <span id="ab-bookmark-count"></span>
+            <span class="ab-toggle-arrow">›</span>
+          </button>
+          <div id="ab-bookmarks-list" hidden></div>
+        </div>
+
+        <!-- Mark as Finished -->
+        <button id="ab-finish-btn" class="ab-finish-btn" onclick="abMarkFinished()">Mark as Finished</button>
+
       </div>
     </div>
 
   </div>
 
-  <!-- Hidden audio element — keeps playing when navigating within the PWA -->
+  <!-- Hidden audio element -->
   <audio id="ab-audio" preload="metadata"></audio>
 
   <!-- ── Reason modal (feed tab) ──────────────────────────────────── -->
