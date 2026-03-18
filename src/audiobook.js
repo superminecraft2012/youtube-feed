@@ -360,11 +360,15 @@ function abUpdatePlayerCover(src) {
   const img         = document.getElementById("ab-player-cover-img");
   const placeholder = document.getElementById("ab-player-cover-placeholder");
   if (src) {
-    img.src     = src;
-    img.hidden  = false;
+    img.onerror = () => {
+      img.hidden         = true;
+      placeholder.hidden = false;
+    };
+    img.src            = src;
+    img.hidden         = false;
     placeholder.hidden = true;
   } else {
-    img.hidden  = true;
+    img.hidden         = true;
     placeholder.hidden = false;
   }
 }
@@ -373,10 +377,23 @@ function loadAbFile(seekTo = 0) {
   const file = abCurrentBook.files[abFileIndex];
   if (!file) return;
 
+  // Reset display immediately so stale duration from previous book doesn't linger
+  const durEl = document.getElementById("ab-duration");
+  const curEl = document.getElementById("ab-current-time");
+  const scrub = document.getElementById("ab-scrub");
+  if (durEl) durEl.textContent = "--:--";
+  if (curEl) curEl.textContent = "0:00";
+  if (scrub) scrub.value = 0;
+
+  abHideAudioError();
   abAudio.src = abProxyUrl(file.url);
   abAudio.load();
 
   const onMeta = () => {
+    // Update duration display as soon as metadata arrives (don't wait for playback)
+    if (durEl && abAudio.duration && !isNaN(abAudio.duration)) {
+      durEl.textContent = formatDuration(Math.floor(abAudio.duration));
+    }
     if (seekTo > 0) abAudio.currentTime = seekTo;
     abAudio.removeEventListener("loadedmetadata", onMeta);
   };
@@ -563,9 +580,29 @@ abAudio.addEventListener("timeupdate", () => {
 });
 
 abAudio.addEventListener("error", () => {
-  const err = abAudio.error;
-  console.error("Audio error", err?.code, err?.message);
+  const err   = abAudio.error;
+  const codes = { 1: "Aborted", 2: "Network error", 3: "Decode error", 4: "Format not supported" };
+  const msg   = codes[err?.code] || `Unknown error (${err?.code})`;
+  console.error("Audio error", err?.code, err?.message, abAudio.src);
+  abShowAudioError(msg);
 });
+
+function abShowAudioError(msg) {
+  let el = document.getElementById("ab-audio-error");
+  if (!el) {
+    el = document.createElement("p");
+    el.id = "ab-audio-error";
+    el.className = "ab-audio-error";
+    document.querySelector(".ab-scrub-row")?.insertAdjacentElement("beforebegin", el);
+  }
+  el.textContent = `⚠️ ${msg}`;
+  el.hidden = false;
+}
+
+function abHideAudioError() {
+  const el = document.getElementById("ab-audio-error");
+  if (el) el.hidden = true;
+}
 
 abAudio.addEventListener("ended", () => {
   abStopSaveTimer();
