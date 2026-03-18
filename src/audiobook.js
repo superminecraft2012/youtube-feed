@@ -270,7 +270,8 @@ function renderAbLibrary() {
       />
       <div
         id="ab-cover-placeholder-${escapeHtml(book.id)}"
-        class="ab-cover-placeholder${coverSrc ? " hidden" : ""}"
+        class="ab-cover-placeholder"
+        ${coverSrc ? "hidden" : ""}
       >📖</div>
     `;
 
