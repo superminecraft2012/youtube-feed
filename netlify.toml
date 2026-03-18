@@ -1,6 +1,7 @@
 [build]
   publish = "src"
   functions = "netlify/functions"
+  command = "sed -i 's/YOUR_ULTRA_PASS/$ULTRA_PASS/g' src/sw.js"
 
 [[redirects]]
   from = "/api/*"
