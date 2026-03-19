@@ -91,11 +91,21 @@ let pendingVideoId = null; // video waiting on reason modal
 // ─── Data fetching ─────────────────────────────────────────────────────────────
 const rssParser = new DOMParser(); // reuse across all RSS parses
 
-async function fetchFeed(handle) {
-  const res = await fetch(`/.netlify/functions/rss?handle=${handle}`);
-  if (!res.ok) throw new Error(`Failed to fetch ${handle}`);
-  const xml = await res.text();
-  return parseRSS(xml, handle);
+async function fetchFeed(handle, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`/.netlify/functions/rss?handle=${handle}`);
+      if (!res.ok) throw new Error(`Failed to fetch ${handle}: ${res.status}`);
+      const xml = await res.text();
+      return parseRSS(xml, handle);
+    } catch (err) {
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 function parseRSS(xml, handle) {
@@ -121,9 +131,16 @@ async function loadFeed() {
 
   statusEl.hidden = true;
 
-  const results = await Promise.allSettled(
-    CHANNELS.map(c => fetchFeed(c.handle))
-  );
+  // Fetch in batches of 6 to avoid rate-limiting
+  const BATCH_SIZE = 6;
+  const results = [];
+  for (let i = 0; i < CHANNELS.length; i += BATCH_SIZE) {
+    const batch = CHANNELS.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.allSettled(
+      batch.map(c => fetchFeed(c.handle))
+    );
+    results.push(...batchResults);
+  }
 
   const failed = results.filter(r => r.status === "rejected").length;
   allVideos = results
