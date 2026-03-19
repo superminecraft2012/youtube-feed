@@ -738,6 +738,11 @@ function openQuests() {
   modal.classList.add("visible");
 }
 
+function openQuestsFromSettings() {
+  closeSettings();
+  setTimeout(() => openQuests(), 240);
+}
+
 function closeQuests() {
   const backdrop = document.getElementById("quests-backdrop");
   const modal = document.getElementById("quests-modal");
