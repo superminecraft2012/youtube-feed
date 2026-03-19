@@ -8,6 +8,7 @@ const FIN_STORAGE_KEY = 'finTickers';
 let finTickers = [];        // array of uppercase symbols e.g. ['AAPL', 'BTC-USD']
 let finPriceData = {};      // { symbol: { price, change, changePct, name, currency, up, sparkline[] } }
 let finLoading = false;
+let finPassiveDropDone = false; // trigger once per page session
 
 // ─── localStorage helpers ──────────────────────────────────────────────────────
 function finLoadTickers() {
@@ -258,6 +259,15 @@ function finInit() {
 
 // Called when Finance tab becomes visible (from switchTab in audiobook.js)
 function finOnTabActivate() {
+  // Passive theme drop on first finance tab open (once per page session).
+  if (!finPassiveDropDone) {
+    finPassiveDropDone = true;
+    try {
+      const drop = typeof window.tryPassiveDrop === "function" ? window.tryPassiveDrop("finance") : null;
+      if (drop && typeof window.showPassiveToast === "function") window.showPassiveToast(drop);
+    } catch {}
+  }
+
   // Refresh if any ticker has no data or errored
   const needsRefresh = finTickers.some(sym => !finPriceData[sym] || finPriceData[sym].error);
   if (needsRefresh && !finLoading) finRefresh();

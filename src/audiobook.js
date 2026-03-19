@@ -108,6 +108,7 @@ function switchTab(tab) {
   const feedSection     = document.getElementById("section-feed");
   const abSection       = document.getElementById("section-audiobooks");
   const finSection      = document.getElementById("section-finance");
+  const questsBtn       = document.getElementById("quests-btn");
   const filterBar       = document.getElementById("filter-bar");
   const watchTally      = document.getElementById("watch-tally");
   const headerTitle     = document.getElementById("header-title");
@@ -120,6 +121,7 @@ function switchTab(tab) {
   filterBar.hidden   = true;
   watchTally.hidden  = true;
   if (cafBtn) cafBtn.hidden = true;
+  if (questsBtn) questsBtn.hidden = true;
 
   if (tab === "feed") {
     feedSection.hidden = false;
@@ -127,6 +129,7 @@ function switchTab(tab) {
     watchTally.hidden  = !watchTally.textContent.trim();
     headerTitle.textContent = "My Feed";
     if (cafBtn) cafBtn.hidden = false;
+    if (questsBtn) questsBtn.hidden = false;
   } else if (tab === "finance") {
     if (finSection) finSection.hidden = false;
     headerTitle.textContent = "Finance";
@@ -545,6 +548,12 @@ abAudio.addEventListener("timeupdate", () => {
   // Auto-advance to next chapter
   if (duration > 0 && current >= duration - 0.5 && abCurrentBook) {
     if (abFileIndex < abCurrentBook.files.length - 1) {
+      // Passive theme drop on chapter completion (non-interrupting).
+      try {
+        const drop = typeof window.tryPassiveDrop === "function" ? window.tryPassiveDrop("chapter") : null;
+        if (drop && typeof window.showPassiveToast === "function") window.showPassiveToast(drop);
+      } catch {}
+
       abFileIndex++;
       const wasPlaying = !abAudio.paused;
       renderAbPlayer();

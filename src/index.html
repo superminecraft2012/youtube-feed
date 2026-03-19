@@ -13,6 +13,54 @@
   <meta name="theme-color" content="#090909" />
   <link rel="apple-touch-icon" href="/icon.png" />
 
+  <script type="module">
+    import {
+      initTheme,
+      equipTheme,
+      loadThemeState,
+      getAllThemes,
+      generateTheme,
+    } from "./themeEngine.js";
+    import {
+      getQuestState,
+      getDailyQuests,
+      getLegendaryQuest,
+      completeQuest,
+      tryPassiveDrop,
+      isDailyCompleted,
+      isLegendaryCompleted,
+    } from "./quests.js";
+    import {
+      showLootBox,
+      showPassiveToast,
+      initLootboxUi,
+    } from "./lootbox.js";
+
+    // Apply theme before any layout paints (prevents FOUC).
+    initTheme();
+
+    // Expose gamification APIs to existing non-module scripts.
+    window.themeEngine = { equipTheme, loadThemeState, getAllThemes, generateTheme };
+    window.getAllThemes = getAllThemes;
+    window.loadThemeState = loadThemeState;
+    window.equipTheme = equipTheme;
+    window.generateTheme = generateTheme;
+
+    window.getQuestState = getQuestState;
+    window.getDailyQuests = getDailyQuests;
+    window.getLegendaryQuest = getLegendaryQuest;
+    window.completeQuest = completeQuest;
+    window.tryPassiveDrop = tryPassiveDrop;
+    window.isDailyCompleted = isDailyCompleted;
+    window.isLegendaryCompleted = isLegendaryCompleted;
+
+    window.showLootBox = showLootBox;
+    window.showPassiveToast = showPassiveToast;
+
+    // Initializes quest state (and performs first-launch silent unlock if missing).
+    getQuestState();
+    initLootboxUi();
+  </script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -36,13 +84,19 @@
 
   <!-- ── Header ───────────────────────────────────────────────────────────── -->
   <header>
-    <div class="header-logo">
+    <div class="header-logo" id="app-logo">
       <div class="header-logo-icon header-logo-icon--img">
         <img src="icon.jpg" alt="" />
       </div>
       <span id="header-title">My Feed</span>
     </div>
     <div class="header-actions">
+      <button class="hdr-btn quests-btn" id="quests-btn" onclick="openQuests()" aria-label="Quests">
+        🗒️ <span>Quests</span>
+      </button>
+      <button class="hdr-btn wardrobe-btn" id="wardrobe-btn" onclick="openWardrobe()" aria-label="Wardrobe">
+        🎨 <span>Wardrobe</span>
+      </button>
       <button class="caf-btn" id="caf-btn" onclick="cafOpen()" aria-label="Call a Friend">
         📞 <span>Call a Friend</span>
       </button>
@@ -260,12 +314,109 @@
     <div class="caf-winner" id="caf-winner" hidden>
       <p class="caf-winner-name" id="caf-winner-name"></p>
       <p class="caf-winner-msg">Give them a call! 🎉</p>
+      <p class="caf-legendary-status" id="caf-legendary-status" hidden>
+        📞 Legendary Quest: Call a friend
+      </p>
+      <button
+        class="caf-legendary-confirm"
+        id="caf-legendary-confirm"
+        hidden
+        onclick="onLegendaryCallFriendConfirm()"
+      >
+        Called them ✓
+      </button>
     </div>
 
     <div class="caf-actions">
       <button class="caf-spin-btn" id="caf-spin-btn" onclick="cafSpin()">Spin</button>
       <button class="caf-close-btn" onclick="cafClose()">Maybe later</button>
     </div>
+  </div>
+
+  <!-- ── Settings bottom sheet (logo tap) ───────────────────────────────── -->
+  <div id="settings-backdrop" onclick="closeSettings()"></div>
+  <div id="settings-modal" role="dialog" aria-modal="true" aria-label="Settings" hidden>
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="settings-header">
+      <p class="settings-title">Settings</p>
+      <button class="sheet-close-btn" onclick="closeSettings()" aria-label="Close">×</button>
+    </div>
+
+    <div id="settings-view">
+      <button class="settings-row" id="settings-theme-row" onclick="openWardrobe()" aria-label="Theme">
+        <span class="settings-row-emoji">🎨</span>
+        <span class="settings-row-label">Theme</span>
+        <span class="settings-row-subtitle" id="settings-theme-subtitle"></span>
+        <span class="settings-row-arrow" aria-hidden="true">→</span>
+      </button>
+
+      <button class="settings-row settings-row--disabled" disabled aria-label="Stats (future)">
+        <span class="settings-row-emoji">📊</span>
+        <span class="settings-row-label">Stats</span>
+        <span class="settings-row-arrow" aria-hidden="true">→</span>
+      </button>
+
+      <p class="settings-seed-line" id="settings-seed-line" onclick="copyThemeSeed()" role="button" tabindex="0">
+        Theme seed: -1 · tap to copy
+      </p>
+    </div>
+
+    <div id="wardrobe-panel" hidden>
+      <div class="wardrobe-header">
+        <button class="wardrobe-back-btn" onclick="closeWardrobe()" aria-label="Back">←</button>
+        <p class="wardrobe-title">🎨 Wardrobe</p>
+        <button class="wardrobe-close-btn" onclick="closeSettings()" aria-label="Close">×</button>
+      </div>
+
+      <div id="wardrobe-grid" class="wardrobe-grid"></div>
+      <div id="wardrobe-empty" class="wardrobe-empty">
+        Complete quests to unlock themes. Open the app daily to earn drops.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Quests bottom sheet ────────────────────────────────────────────── -->
+  <div id="quests-backdrop" onclick="closeQuests()"></div>
+  <div id="quests-modal" role="dialog" aria-modal="true" aria-label="Quests" hidden>
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="quests-header">
+      <p class="quests-title">🗒️ Quests</p>
+      <button class="sheet-close-btn" onclick="closeQuests()" aria-label="Close">×</button>
+    </div>
+
+    <div id="daily-quests" class="quests-daily"></div>
+    <p class="quests-resets">Resets at midnight</p>
+    <div id="legendary-quest" class="quests-legendary"></div>
+  </div>
+
+  <!-- ── Loot box modal ─────────────────────────────────────────────────── -->
+  <div id="lootbox-backdrop"></div>
+  <div id="lootbox-modal" aria-live="polite" hidden>
+    <div class="lb-chest-wrap">
+      <div id="lb-chest" class="lb-chest">📦</div>
+    </div>
+    <div id="lb-particles" class="lb-particles" aria-hidden="true"></div>
+    <div id="lb-theme-name" class="lb-theme-name" aria-label="Theme name"></div>
+    <div id="lb-harmony" class="lb-harmony" aria-label="Harmony"></div>
+
+    <div class="lb-swatch-row" aria-hidden="true">
+      <div class="lb-swatch" id="lb-swatch-bg"></div>
+      <div class="lb-swatch" id="lb-swatch-surface"></div>
+      <div class="lb-swatch" id="lb-swatch-accent"></div>
+      <div class="lb-swatch" id="lb-swatch-accent2"></div>
+    </div>
+
+    <div id="lb-actions" class="lb-actions">
+      <button id="lb-equip-btn" class="lb-action-btn lb-equip-btn">Equip Now</button>
+      <button id="lb-save-btn" class="lb-action-btn lb-save-btn">Save for Later</button>
+    </div>
+
+    <div id="lb-particles-count" hidden>10</div>
+  </div>
+
+  <!-- ── Passive drop toast ──────────────────────────────────────────────── -->
+  <div id="passive-toast" hidden aria-live="polite" role="button" tabindex="0">
+    <p id="passive-toast-text"></p>
   </div>
 
   <script src="helpers.js"></script>

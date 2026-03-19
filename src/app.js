@@ -265,8 +265,13 @@ function selectReason(reason) {
   const videoId = pendingVideoId;
   logReason(reason, videoId);
   closeModal();
-  deepLink(videoId);
   renderTally();
+  // Passive theme drop (non-interrupting). Trigger before deepLink/navigation.
+  try {
+    const drop = typeof window.tryPassiveDrop === "function" ? window.tryPassiveDrop("video") : null;
+    if (drop && typeof window.showPassiveToast === "function") window.showPassiveToast(drop);
+  } catch {}
+  deepLink(videoId);
 }
 
 function logReason(reason, videoId) {
@@ -411,9 +416,13 @@ function cafOpen() {
   const winner   = document.getElementById('caf-winner');
   const spinBtn  = document.getElementById('caf-spin-btn');
   const reel     = document.getElementById('caf-reel');
+  const legStatus = document.getElementById('caf-legendary-status');
+  const legConfirm = document.getElementById('caf-legendary-confirm');
 
   // Reset state
   winner.hidden = true;
+  if (legStatus) legStatus.hidden = true;
+  if (legConfirm) legConfirm.hidden = true;
   spinBtn.disabled = false;
   spinBtn.textContent = 'Spin';
   cafSpinning = false;
@@ -440,6 +449,8 @@ function cafSpin() {
   const spinBtn = document.getElementById('caf-spin-btn');
   const winner  = document.getElementById('caf-winner');
   const reel    = document.getElementById('caf-reel');
+  const legStatus = document.getElementById('caf-legendary-status');
+  const legConfirm = document.getElementById('caf-legendary-confirm');
 
   spinBtn.disabled = true;
   winner.hidden = true;
@@ -482,5 +493,296 @@ function cafSpin() {
     spinBtn.disabled = false;
     spinBtn.textContent = 'Spin again';
     cafSpinning = false;
+
+    // Legendary: conditionally prompt for the "call_friend" quest.
+    try {
+      const legendary = typeof window.getLegendaryQuest === "function" ? window.getLegendaryQuest() : null;
+      const isCallFriend = !!legendary && legendary.id === "call_friend";
+      if (legStatus) legStatus.hidden = !isCallFriend;
+      if (legConfirm) legConfirm.hidden = !isCallFriend;
+    } catch {}
   }, 2400);
 }
+
+// ─── Gamification UI: Settings, Wardrobe, Quests ──────────────────────────
+
+function getEquippedSeed() {
+  const state = typeof window.loadThemeState === "function" ? window.loadThemeState() : null;
+  const equipped = state?.equipped;
+  return equipped == null ? -1 : equipped;
+}
+
+function getEquippedThemeName() {
+  const seed = getEquippedSeed();
+  if (seed === -1) return "Default";
+  try {
+    const all = typeof window.getAllThemes === "function" ? window.getAllThemes() : [];
+    const found = all.find(t => t.seed === seed);
+    return found?.name || (typeof window.generateTheme === "function" ? window.generateTheme(seed)?.name : "Default");
+  } catch {
+    return "Default";
+  }
+}
+
+function setSettingsSeedLine() {
+  const elSeed = document.getElementById("settings-seed-line");
+  if (!elSeed) return;
+  const seed = getEquippedSeed();
+  elSeed.textContent = `Theme seed: ${seed} · tap to copy`;
+}
+
+function setSettingsThemeSubtitle() {
+  const subtitle = document.getElementById("settings-theme-subtitle");
+  if (!subtitle) return;
+  subtitle.textContent = getEquippedThemeName();
+}
+
+function openSettings() {
+  const backdrop = document.getElementById("settings-backdrop");
+  const modal = document.getElementById("settings-modal");
+  if (!backdrop || !modal) return;
+
+  setSettingsThemeSubtitle();
+  setSettingsSeedLine();
+
+  const settingsView = document.getElementById("settings-view");
+  const wardrobePanel = document.getElementById("wardrobe-panel");
+
+  if (settingsView) settingsView.hidden = false;
+  if (wardrobePanel) wardrobePanel.hidden = true;
+
+  modal.hidden = false;
+  backdrop.hidden = false;
+  backdrop.classList.add("visible");
+  modal.classList.add("visible");
+}
+
+function closeSettings() {
+  const backdrop = document.getElementById("settings-backdrop");
+  const modal = document.getElementById("settings-modal");
+  if (!backdrop || !modal) return;
+
+  backdrop.classList.remove("visible");
+  modal.classList.remove("visible");
+
+  // Match CSS close duration (220ms-ish).
+  setTimeout(() => {
+    modal.hidden = true;
+    backdrop.hidden = true;
+  }, 240);
+}
+
+function renderWardrobe() {
+  const grid = document.getElementById("wardrobe-grid");
+  const empty = document.getElementById("wardrobe-empty");
+  if (!grid || !empty) return;
+
+  const state = typeof window.loadThemeState === "function" ? window.loadThemeState() : null;
+  const unlocked = state?.unlocked || [];
+  const hasAnyUnlocked = unlocked.length > 0;
+
+  if (!hasAnyUnlocked) {
+    grid.innerHTML = "";
+    empty.hidden = false;
+    return;
+  }
+
+  empty.hidden = true;
+
+  const all = typeof window.getAllThemes === "function" ? window.getAllThemes() : [];
+  const defaultCard = all[0];
+  const rest = all.slice(1).reverse(); // most recently unlocked first
+  const themes = defaultCard ? [defaultCard, ...rest] : rest;
+
+  const equippedSeed = getEquippedSeed();
+
+  grid.innerHTML = themes
+    .map(t => {
+      const isEquipped = t.seed === equippedSeed || (equippedSeed === -1 && t.seed === -1);
+
+      const vars = t.vars || {};
+      const bg = vars["--theme-bg"] || "var(--theme-bg)";
+      const text = vars["--theme-text"] || "var(--theme-text)";
+      const accent = vars["--theme-accent"] || "var(--theme-accent)";
+      const accent2 = vars["--theme-accent2"] || "var(--theme-accent2)";
+      const surface = vars["--theme-surface"] || "var(--theme-surface)";
+
+      const equipHtml = isEquipped
+        ? `<span class="wardrobe-equipped" style="color:${accent}">Equipped ✓</span>`
+        : `<button class="wardrobe-equip-btn" onclick="onEquipTheme(${t.seed})" style="border-color:${accent}">Equip</button>`;
+
+      return `
+        <div class="wardrobe-card" style="background:${bg}; color:${text}; border-color:${accent}">
+          <div class="wardrobe-swatches" aria-hidden="true">
+            <span class="wardrobe-swatch" style="background:${bg}"></span>
+            <span class="wardrobe-swatch" style="background:${surface}"></span>
+            <span class="wardrobe-swatch" style="background:${accent}"></span>
+            <span class="wardrobe-swatch" style="background:${accent2}"></span>
+          </div>
+          <p class="wardrobe-name">${escapeHtml(t.name || "Theme")}</p>
+          <p class="wardrobe-harmony">${escapeHtml(t.harmony || "")}</p>
+          <div class="wardrobe-equip-slot">${equipHtml}</div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function openWardrobe() {
+  openSettings();
+  const settingsView = document.getElementById("settings-view");
+  const wardrobePanel = document.getElementById("wardrobe-panel");
+  if (settingsView) settingsView.hidden = true;
+  if (wardrobePanel) wardrobePanel.hidden = false;
+  renderWardrobe();
+}
+
+function closeWardrobe() {
+  const settingsView = document.getElementById("settings-view");
+  const wardrobePanel = document.getElementById("wardrobe-panel");
+  if (settingsView) settingsView.hidden = false;
+  if (wardrobePanel) wardrobePanel.hidden = true;
+  setSettingsThemeSubtitle();
+}
+
+function copyThemeSeed() {
+  try {
+    const seed = getEquippedSeed();
+    const text = String(seed);
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") return;
+    navigator.clipboard.writeText(text);
+  } catch {}
+}
+
+function onEquipTheme(seed) {
+  try {
+    if (typeof window.equipTheme === "function") window.equipTheme(seed);
+    setSettingsThemeSubtitle();
+    setSettingsSeedLine();
+    renderWardrobe();
+  } catch {}
+}
+
+// ─── Quests bottom sheet ─────────────────────────────────────────────────
+
+function renderQuestsSheet() {
+  const dailyEl = document.getElementById("daily-quests");
+  const legendaryEl = document.getElementById("legendary-quest");
+  if (!dailyEl || !legendaryEl) return;
+
+  const daily = typeof window.getDailyQuests === "function" ? window.getDailyQuests() : [];
+  const state = typeof window.getQuestState === "function" ? window.getQuestState() : null;
+  const dailyCompleted = new Set(state?.dailyCompleted || []);
+
+  dailyEl.innerHTML = daily.map(q => {
+    const done = dailyCompleted.has(q.id);
+    if (done) {
+      return `
+        <div class="quest-row quest-row--done">
+          <span class="quest-emoji">${escapeHtml(q.emoji || "✅")}</span>
+          <span class="quest-label">${escapeHtml(q.label)}</span>
+          <span class="quest-status">✓ Done</span>
+        </div>
+      `;
+    }
+    return `
+      <div class="quest-row">
+        <span class="quest-emoji">${escapeHtml(q.emoji || "✅")}</span>
+        <span class="quest-label">${escapeHtml(q.label)}</span>
+        <button class="quest-done-btn" onclick="onDailyQuestDone('${escapeHtml(q.id)}')">${escapeHtml(q.confirmText || "Done")}</button>
+      </div>
+    `;
+  }).join("");
+
+  const legendary = typeof window.getLegendaryQuest === "function" ? window.getLegendaryQuest() : null;
+  if (!legendary) {
+    legendaryEl.innerHTML = `<p class="quest-empty">No legendary quest.</p>`;
+    return;
+  }
+
+  if (legendary.id === "call_friend") {
+    legendaryEl.innerHTML = `
+      <div class="legendary-card">
+        <div class="legendary-badge">⚡ LEGENDARY</div>
+        <div class="legendary-row">
+          <span class="quest-emoji">${escapeHtml(legendary.emoji || "📞")}</span>
+          <span class="quest-label">${escapeHtml(legendary.label)}</span>
+        </div>
+        <button class="legendary-complete-btn" onclick="closeQuests(); cafOpen()">Open CAF Spinner →</button>
+      </div>
+    `;
+  } else {
+    legendaryEl.innerHTML = `
+      <div class="legendary-card">
+        <div class="legendary-badge">⚡ LEGENDARY</div>
+        <div class="legendary-row">
+          <span class="quest-emoji">${escapeHtml(legendary.emoji || "🔥")}</span>
+          <span class="quest-label">${escapeHtml(legendary.label)}</span>
+        </div>
+        <button class="legendary-complete-btn" onclick="onLegendaryQuestComplete('${escapeHtml(legendary.id)}')">Mark Complete</button>
+      </div>
+    `;
+  }
+}
+
+function openQuests() {
+  const backdrop = document.getElementById("quests-backdrop");
+  const modal = document.getElementById("quests-modal");
+  if (!backdrop || !modal) return;
+
+  renderQuestsSheet();
+
+  modal.hidden = false;
+  backdrop.hidden = false;
+  backdrop.classList.add("visible");
+  modal.classList.add("visible");
+}
+
+function closeQuests() {
+  const backdrop = document.getElementById("quests-backdrop");
+  const modal = document.getElementById("quests-modal");
+  if (!backdrop || !modal) return;
+
+  backdrop.classList.remove("visible");
+  modal.classList.remove("visible");
+
+  setTimeout(() => {
+    modal.hidden = true;
+    backdrop.hidden = true;
+  }, 220);
+}
+
+function onDailyQuestDone(id) {
+  try {
+    const theme = typeof window.completeQuest === "function" ? window.completeQuest(id) : null;
+    if (theme && typeof window.showLootBox === "function") window.showLootBox(theme);
+    renderQuestsSheet();
+  } catch {}
+}
+
+function onLegendaryQuestComplete(id) {
+  try {
+    const theme = typeof window.completeQuest === "function" ? window.completeQuest(id) : null;
+    if (theme && typeof window.showLootBox === "function") window.showLootBox(theme);
+    renderQuestsSheet();
+  } catch {}
+}
+
+function onLegendaryCallFriendConfirm() {
+  try {
+    const theme = typeof window.completeQuest === "function" ? window.completeQuest("call_friend") : null;
+    cafClose();
+    if (theme && typeof window.showLootBox === "function") window.showLootBox(theme);
+    // If quests sheet is open, refresh it so the new legendary appears immediately.
+    const questsModal = document.getElementById("quests-modal");
+    const isOpen = questsModal && !questsModal.hidden && questsModal.classList.contains("visible");
+    if (isOpen) renderQuestsSheet();
+  } catch {}
+}
+
+// Hook up hidden gesture: logo tap -> settings.
+const appLogoEl = document.getElementById("app-logo");
+if (appLogoEl && typeof openSettings === "function") {
+  appLogoEl.addEventListener("click", () => openSettings());
+}
+
