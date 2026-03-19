@@ -54,7 +54,7 @@ function finAddTicker() {
   finRenderGrid();
 
   // Fetch price in background
-  finFetchOne(raw).then(() => finRenderGrid());
+  finFetchAll([raw]).then(() => finRenderGrid());
 }
 
 function finRemoveTicker(symbol) {
@@ -67,27 +67,45 @@ function finRemoveTicker(symbol) {
 // ─── Price fetching ────────────────────────────────────────────────────────────
 // All fetches go through /.netlify/functions/quote (server-side proxy, no CORS issues)
 
-async function finFetchOne(symbol) {
-  const url = `/.netlify/functions/quote?symbol=${encodeURIComponent(symbol)}`;
+function finApplyQuote(symbol, json) {
+  finPriceData[symbol] = {
+    price:     json.price,
+    change:    json.change,
+    changePct: json.changePct,
+    name:      json.name || symbol,
+    currency:  json.currency || 'USD',
+    up:        json.change >= 0,
+    sparkline: json.sparkline || [],
+    loading:   false,
+    error:     false,
+  };
+}
+
+async function finFetchAll(symbols) {
+  if (symbols.length === 0) return;
+  const url = `/.netlify/functions/quote?symbols=${encodeURIComponent(symbols.join(","))}`;
   try {
     const res = await fetch(url);
     const json = await res.json();
-    if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    finPriceData[symbol] = {
-      price:     json.price,
-      change:    json.change,
-      changePct: json.changePct,
-      name:      json.name || symbol,
-      currency:  json.currency || 'USD',
-      up:        json.change >= 0,
-      sparkline: json.sparkline || [],
-      loading:   false,
-      error:     false,
-    };
+    // Single symbol returns flat object, multiple returns array
+    if (Array.isArray(json)) {
+      for (const q of json) {
+        if (q.error) {
+          finPriceData[q.symbol] = { ...(finPriceData[q.symbol] || {}), error: true, loading: false };
+        } else {
+          finApplyQuote(q.symbol, q);
+        }
+      }
+    } else {
+      finApplyQuote(json.symbol, json);
+    }
   } catch (err) {
-    console.warn(`finFetchOne(${symbol}) failed:`, err.message);
-    finPriceData[symbol] = { ...(finPriceData[symbol] || {}), error: true, loading: false };
+    console.warn("finFetchAll failed:", err.message);
+    for (const sym of symbols) {
+      finPriceData[sym] = { ...(finPriceData[sym] || {}), error: true, loading: false };
+    }
   }
 }
 
@@ -105,8 +123,8 @@ async function finRefresh() {
   });
   finRenderGrid();
 
-  // Fetch all in parallel
-  await Promise.allSettled(finTickers.map(sym => finFetchOne(sym)));
+  // Fetch all in a single batch request
+  await finFetchAll(finTickers);
 
   finLoading = false;
   if (btn) btn.classList.remove('spinning');
@@ -246,15 +264,7 @@ function finShowStatus(msg, isError = false) {
 // ─── Init ──────────────────────────────────────────────────────────────────────
 function finInit() {
   finLoadTickers();
-
-  if (finTickers.length > 0) {
-    // Show skeletons immediately, then fetch
-    finTickers.forEach(sym => { finPriceData[sym] = { loading: true }; });
-    finRenderGrid();
-    Promise.allSettled(finTickers.map(sym => finFetchOne(sym))).then(() => finRenderGrid());
-  } else {
-    finRenderGrid(); // shows empty state
-  }
+  finRenderGrid(); // render grid shell; data fetched on tab activation
 }
 
 // Called when Finance tab becomes visible (from switchTab in audiobook.js)
@@ -268,8 +278,8 @@ function finOnTabActivate() {
     } catch {}
   }
 
-  // Refresh if any ticker has no data or errored
-  const needsRefresh = finTickers.some(sym => !finPriceData[sym] || finPriceData[sym].error);
+  // Fetch if any ticker has no data yet or errored
+  const needsRefresh = finTickers.some(sym => !finPriceData[sym] || finPriceData[sym].error || finPriceData[sym].loading);
   if (needsRefresh && !finLoading) finRefresh();
 }
 
