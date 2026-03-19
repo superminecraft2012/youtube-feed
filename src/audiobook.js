@@ -159,12 +159,15 @@ async function loadLibrary(forceRefresh = false) {
 
   if (!forceRefresh) {
     try {
-      const cached = sessionStorage.getItem("ab-library-cache");
+      const cached = localStorage.getItem("ab-library-cache");
       if (cached) {
-        BOOKS = JSON.parse(cached);
-        abLibraryLoaded = true;
-        renderAbLibrary();
-        return;
+        const { books, fetchedAt } = JSON.parse(cached);
+        if (Date.now() - fetchedAt < 3600000) { // 1-hour TTL
+          BOOKS = books;
+          abLibraryLoaded = true;
+          renderAbLibrary();
+          return;
+        }
       }
     } catch {}
   }
@@ -174,7 +177,7 @@ async function loadLibrary(forceRefresh = false) {
     const res = await fetch(`/.netlify/functions/library?${params}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     BOOKS = await res.json();
-    sessionStorage.setItem("ab-library-cache", JSON.stringify(BOOKS));
+    localStorage.setItem("ab-library-cache", JSON.stringify({ books: BOOKS, fetchedAt: Date.now() }));
     abLibraryLoaded = true;
     renderAbLibrary();
   } catch (err) {

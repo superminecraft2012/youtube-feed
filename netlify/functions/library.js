@@ -73,7 +73,7 @@ export async function handler(event) {
       statusCode: 200,
       headers: {
         "Content-Type":                "application/json",
-        "Cache-Control":               "public, max-age=300", // 5-min CDN cache
+        "Cache-Control":               "public, max-age=3600", // 1-hour CDN cache
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify(books),

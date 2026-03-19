@@ -111,23 +111,6 @@ let pendingVideoId = null; // video waiting on reason modal
 // ─── Data fetching ─────────────────────────────────────────────────────────────
 const rssParser = new DOMParser(); // reuse across all RSS parses
 
-async function fetchFeed(handle, retries = 2) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(`/.netlify/functions/rss?handle=${handle}`);
-      if (!res.ok) throw new Error(`Failed to fetch ${handle}: ${res.status}`);
-      const xml = await res.text();
-      return parseRSS(xml, handle);
-    } catch (err) {
-      if (attempt < retries) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-        continue;
-      }
-      throw err;
-    }
-  }
-}
-
 function parseRSS(xml, handle) {
   const doc = rssParser.parseFromString(xml, "application/xml");
   return [...doc.querySelectorAll("entry")].map(entry => ({
@@ -142,32 +125,62 @@ function parseRSS(xml, handle) {
   }));
 }
 
-async function loadFeed() {
+const RSS_CACHE_KEY = "rss-feed-cache";
+const RSS_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+async function loadFeed(forceRefresh = false) {
   const statusEl = document.getElementById("status");
   const feed = document.getElementById("feed");
 
-  // Show skeleton loading cards while we wait
-  showSkeletons(6);
-
   statusEl.hidden = true;
 
-  // Fetch in batches of 6 to avoid rate-limiting
-  const BATCH_SIZE = 6;
-  const results = [];
-  for (let i = 0; i < CHANNELS.length; i += BATCH_SIZE) {
-    const batch = CHANNELS.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.allSettled(
-      batch.map(c => fetchFeed(c.handle))
-    );
-    results.push(...batchResults);
+  // Check client-side cache first (skip on pull-to-refresh)
+  if (!forceRefresh) {
+    try {
+      const cached = sessionStorage.getItem(RSS_CACHE_KEY);
+      if (cached) {
+        const { videos, fetchedAt } = JSON.parse(cached);
+        if (Date.now() - fetchedAt < RSS_CACHE_TTL) {
+          allVideos = videos.map(v => ({ ...v, published: new Date(v.published) }));
+          renderFilterPills();
+          renderFeed();
+          renderTally();
+          dismissSplash();
+          return;
+        }
+      }
+    } catch {}
   }
 
-  const failed = results.filter(r => r.status === "rejected").length;
-  allVideos = results
-    .filter(r => r.status === "fulfilled")
-    .flatMap(r => r.value)
-    .filter(v => v.id && v.title)
-    .sort((a, b) => b.published - a.published);
+  showSkeletons(6);
+
+  // Single batch request for all channels
+  const handles = CHANNELS.map(c => c.handle).join(",");
+  let failed = 0;
+
+  try {
+    const res = await fetch(`/.netlify/functions/rss-batch?handles=${encodeURIComponent(handles)}`);
+    if (!res.ok) throw new Error(`Batch fetch failed: ${res.status}`);
+    const { results, errors } = await res.json();
+
+    failed = Object.keys(errors || {}).length;
+    allVideos = Object.entries(results)
+      .flatMap(([handle, xml]) => parseRSS(xml, handle))
+      .filter(v => v.id && v.title)
+      .sort((a, b) => b.published - a.published);
+
+    // Cache the results
+    try {
+      sessionStorage.setItem(RSS_CACHE_KEY, JSON.stringify({
+        videos: allVideos,
+        fetchedAt: Date.now(),
+      }));
+    } catch {}
+  } catch (err) {
+    console.warn("Batch RSS fetch failed:", err.message);
+    allVideos = [];
+    failed = CHANNELS.length;
+  }
 
   hideSkeletons();
   dismissSplash();
@@ -448,7 +461,7 @@ function timeAgo(date) {
       await new Promise(r => setTimeout(r, 400));
       ind.classList.remove('ptr-pulling');
       ind.classList.add('ptr-spinning');
-      await loadFeed();
+      await loadFeed(true);
       ind.classList.remove('ptr-spinning');
     }
   });
