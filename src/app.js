@@ -61,8 +61,16 @@ function dismissSplash() {
 
     const icon = splash.querySelector(".splash-icon");
     if (icon) {
+      // Haptic fires immediately on finger-down for best mobile feel
+      icon.addEventListener("touchstart", () => {
+        navigator.vibrate?.(8);
+      }, { once: true, passive: true });
+
       icon.addEventListener("click", () => {
         clearInterval(_taglineTimer);
+
+        // Bounce animation
+        icon.classList.add("splash-icon--tapped");
 
         // Ring bursts outward
         if (ring) {
