@@ -69,20 +69,24 @@ function dismissSplash() {
       icon.addEventListener("click", () => {
         clearInterval(_taglineTimer);
 
-        // Bounce animation
+        // Bounce animation + ring burst start together
         icon.classList.add("splash-icon--tapped");
-
-        // Ring bursts outward
         if (ring) {
           ring.classList.remove("ring-idle");
           ring.classList.add("ring-exit");
         }
 
-        // After ring exit, fade the whole splash out
+        // After bounce settles, icon expands and fades following the ring
+        setTimeout(() => {
+          icon.classList.remove("splash-icon--tapped");
+          icon.classList.add("splash-icon--exit");
+        }, 450);
+
+        // After all exit animations finish, dissolve the splash
         setTimeout(() => {
           splash.classList.add("hide");
           splash.addEventListener("transitionend", () => splash.classList.add("gone"), { once: true });
-        }, 500);
+        }, 900);
       }, { once: true });
     }
   }, delay);
