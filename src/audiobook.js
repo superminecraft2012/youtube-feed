@@ -105,28 +105,36 @@ function switchTab(tab) {
     t.classList.toggle("active", t.dataset.tab === tab)
   );
 
-  const feedSection = document.getElementById("section-feed");
-  const abSection   = document.getElementById("section-audiobooks");
-  const filterBar   = document.getElementById("filter-bar");
-  const watchTally  = document.getElementById("watch-tally");
-  const headerTitle = document.getElementById("header-title");
-  const refreshBtn  = document.querySelector(".refresh-btn");
+  const feedSection     = document.getElementById("section-feed");
+  const abSection       = document.getElementById("section-audiobooks");
+  const finSection      = document.getElementById("section-finance");
+  const filterBar       = document.getElementById("filter-bar");
+  const watchTally      = document.getElementById("watch-tally");
+  const headerTitle     = document.getElementById("header-title");
+  const refreshBtn      = document.querySelector(".refresh-btn");
+
+  // Hide all sections first
+  feedSection.hidden = true;
+  abSection.hidden   = true;
+  if (finSection) finSection.hidden = true;
+  filterBar.hidden   = true;
+  watchTally.hidden  = true;
+  refreshBtn.hidden  = true;
 
   if (tab === "feed") {
     feedSection.hidden = false;
-    abSection.hidden   = true;
     filterBar.hidden   = document.getElementById("filter-pills").children.length === 0;
     watchTally.hidden  = !watchTally.textContent.trim();
     headerTitle.textContent = "My Feed";
     refreshBtn.hidden  = false;
-    abSaveProgress({ lastPlayed: Date.now() });
+  } else if (tab === "finance") {
+    if (finSection) finSection.hidden = false;
+    headerTitle.textContent = "Finance";
+    if (typeof finOnTabActivate === "function") finOnTabActivate();
   } else {
-    feedSection.hidden = true;
     abSection.hidden   = false;
-    filterBar.hidden   = true;
-    watchTally.hidden  = true;
     headerTitle.textContent = "My Books";
-    refreshBtn.hidden  = true;
+    abSaveProgress({ lastPlayed: Date.now() });
     loadLibrary();
   }
 }

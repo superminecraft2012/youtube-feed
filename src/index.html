@@ -66,6 +66,48 @@
     <main id="feed"></main>
   </div>
 
+  <!-- ── Finance tab content ──────────────────────────────────────────────── -->
+  <div id="section-finance" hidden>
+    <div class="fin-header">
+      <h2 class="fin-title">Finance</h2>
+      <button class="fin-refresh-btn" id="fin-refresh-btn" onclick="finRefresh()" aria-label="Refresh prices">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Add ticker row -->
+    <div class="fin-add-row">
+      <input
+        type="text"
+        id="fin-ticker-input"
+        class="fin-ticker-input"
+        placeholder="Add ticker… e.g. AAPL, BTC-USD"
+        autocapitalize="characters"
+        spellcheck="false"
+        onkeydown="if(event.key==='Enter') finAddTicker()"
+      />
+      <button class="fin-add-btn" onclick="finAddTicker()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+
+    <!-- Status / error message -->
+    <p id="fin-status" class="fin-status" hidden></p>
+
+    <!-- Ticker cards -->
+    <div id="fin-grid"></div>
+
+    <!-- Empty state -->
+    <div id="fin-empty" class="fin-empty" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      <p>No tickers yet.</p>
+      <p class="fin-empty-hint">Add a symbol like AAPL, TSLA, BTC-USD, ETH-USD…</p>
+    </div>
+  </div>
+
   <!-- ── Audiobooks tab content ────────────────────────────────────────────── -->
   <div id="section-audiobooks" hidden>
 
@@ -179,6 +221,12 @@
 
   <!-- ── Bottom tab bar ────────────────────────────────────────────────────── -->
   <nav id="tab-bar">
+    <button class="tab-btn" data-tab="finance" onclick="switchTab('finance')">
+      <span class="tab-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      </span>
+      <span class="tab-label">Finance</span>
+    </button>
     <button class="tab-btn active" data-tab="feed" onclick="switchTab('feed')">
       <span class="tab-icon">▶</span>
       <span class="tab-label">Feed</span>
@@ -190,6 +238,7 @@
   </nav>
 
   <script src="helpers.js"></script>
+  <script src="finance.js"></script>
   <script src="channels.js"></script>
   <script src="audiobooks.js"></script>
   <script src="app.js"></script>
