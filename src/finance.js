@@ -67,35 +67,22 @@ function finRemoveTicker(symbol) {
 // All fetches go through /.netlify/functions/quote (server-side proxy, no CORS issues)
 
 async function finFetchOne(symbol) {
-  // Fetch 5d / 30m — gives price, prev close, and sparkline data in one request
-  const url = `/.netlify/functions/quote?symbol=${encodeURIComponent(symbol)}&range=5d&interval=30m`;
+  const url = `/.netlify/functions/quote?symbol=${encodeURIComponent(symbol)}`;
   try {
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    const result = json?.chart?.result?.[0];
-    if (!result) throw new Error('No result');
-
-    const meta = result.meta;
-    const price = meta.regularMarketPrice;
-    const prev  = meta.chartPreviousClose ?? meta.previousClose ?? price;
-    const change    = price - prev;
-    const changePct = prev !== 0 ? (change / prev) * 100 : 0;
-
-    // Sparkline: use close prices from indicators, filter nulls
-    const closes = result.indicators?.quote?.[0]?.close ?? [];
-    const sparkline = closes.filter(v => v != null);
+    if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`);
 
     finPriceData[symbol] = {
-      price,
-      change,
-      changePct,
-      name: meta.shortName || meta.longName || symbol,
-      currency: meta.currency || 'USD',
-      up: change >= 0,
-      sparkline,
-      loading: false,
-      error: false,
+      price:     json.price,
+      change:    json.change,
+      changePct: json.changePct,
+      name:      json.name || symbol,
+      currency:  json.currency || 'USD',
+      up:        json.change >= 0,
+      sparkline: json.sparkline || [],
+      loading:   false,
+      error:     false,
     };
   } catch (err) {
     console.warn(`finFetchOne(${symbol}) failed:`, err.message);
