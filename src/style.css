@@ -290,6 +290,11 @@ input, select { font: inherit; color: inherit; }
 #intro-splash.splash-ready .splash-icon {
   pointer-events: auto;
   cursor: pointer;
+  transition: transform 0.15s var(--ease-out);
+}
+
+#intro-splash.splash-ready .splash-icon:active {
+  transform: scale(0.92);
 }
 
 .splash-loader {

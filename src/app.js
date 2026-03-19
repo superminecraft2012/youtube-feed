@@ -61,34 +61,21 @@ function dismissSplash() {
 
     const icon = splash.querySelector(".splash-icon");
     if (icon) {
-      let exitTriggered = false;
-
-      // Press down: shrink immediately
-      icon.addEventListener("pointerdown", () => {
-        icon.style.transition = "transform 0.12s ease-out";
-        icon.style.transform = "scale(0.86)";
-      });
-
-      // Release: expand + fade from wherever it currently is, no jump
-      icon.addEventListener("pointerup", () => {
-        if (exitTriggered) return;
-        exitTriggered = true;
+      icon.addEventListener("click", () => {
         clearInterval(_taglineTimer);
 
-        icon.style.transition = "transform 0.55s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.5s ease-in";
-        icon.style.transform = "scale(2.2)";
-        icon.style.opacity = "0";
-
+        // Ring bursts outward
         if (ring) {
           ring.classList.remove("ring-idle");
           ring.classList.add("ring-exit");
         }
 
+        // After ring exit, fade the whole splash out
         setTimeout(() => {
           splash.classList.add("hide");
           splash.addEventListener("transitionend", () => splash.classList.add("gone"), { once: true });
-        }, 600);
-      });
+        }, 500);
+      }, { once: true });
     }
   }, delay);
 }
