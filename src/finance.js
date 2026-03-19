@@ -1,5 +1,5 @@
 // ─── Finance Tab ───────────────────────────────────────────────────────────────
-// Tracks stock/crypto tickers with live prices from Yahoo Finance.
+// Tracks stock/crypto tickers with live prices via a Netlify proxy function.
 // Tickers saved in localStorage so they persist across sessions.
 
 const FIN_STORAGE_KEY = 'finTickers';
@@ -31,7 +31,7 @@ function finAddTicker() {
   const raw = input.value.trim().toUpperCase().replace(/\s+/g, '');
   if (!raw) return;
 
-  // Basic validation — allow letters, digits, dots, dashes (covers BTC-USD, ^GSPC, etc.)
+  // Basic validation — allow letters, digits, dots, dashes, carets (covers BTC-USD, ^GSPC, etc.)
   if (!/^[A-Z0-9.\-\^]+$/.test(raw)) {
     finShowStatus('Invalid ticker symbol.', true);
     return;
@@ -47,8 +47,13 @@ function finAddTicker() {
   finSaveTickers();
   input.value = '';
   finShowStatus('');
+
+  // Mark as loading and immediately render the skeleton card
+  finPriceData[raw] = { loading: true };
   finRenderGrid();
-  finFetchPrices([raw]);
+
+  // Fetch price in background
+  finFetchOne(raw).then(() => finRenderGrid());
 }
 
 function finRemoveTicker(symbol) {
@@ -59,106 +64,41 @@ function finRemoveTicker(symbol) {
 }
 
 // ─── Price fetching ────────────────────────────────────────────────────────────
-// Uses Yahoo Finance v7 quote endpoint (no API key needed, publicly accessible)
-async function finFetchPrices(symbols) {
-  if (!symbols || symbols.length === 0) return;
+// All fetches go through /.netlify/functions/quote (server-side proxy, no CORS issues)
 
-  // Yahoo Finance v7 quote — batch up to ~50 symbols at once
-  const joined = symbols.join(',');
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(joined)}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,shortName,longName,currency,regularMarketPreviousClose`;
-
-  let quotes = [];
+async function finFetchOne(symbol) {
+  // Fetch 5d / 30m — gives price, prev close, and sparkline data in one request
+  const url = `/.netlify/functions/quote?symbol=${encodeURIComponent(symbol)}&range=5d&interval=30m`;
   try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    quotes = json?.quoteResponse?.result || [];
-  } catch (err) {
-    // Fallback: try v8 chart endpoint per symbol
-    for (const sym of symbols) {
-      await finFetchSingleChart(sym);
-    }
-    finRenderGrid();
-    return;
-  }
-
-  for (const q of quotes) {
-    const sym = q.symbol;
-    const price = q.regularMarketPrice;
-    const change = q.regularMarketChange;
-    const changePct = q.regularMarketChangePercent;
-    const name = q.shortName || q.longName || sym;
-    const currency = q.currency || 'USD';
-
-    finPriceData[sym] = {
-      price,
-      change,
-      changePct,
-      name,
-      currency,
-      up: change >= 0,
-      sparkline: finPriceData[sym]?.sparkline || [],   // preserve existing sparkline
-      loading: false,
-      error: false,
-    };
-  }
-
-  // Mark any requested symbols not returned as errored
-  for (const sym of symbols) {
-    if (!finPriceData[sym] || finPriceData[sym].loading) {
-      finPriceData[sym] = { ...(finPriceData[sym] || {}), error: true, loading: false };
-    }
-  }
-
-  // Now fetch sparklines (5-day 1d chart) for each symbol
-  await Promise.allSettled(symbols.map(sym => finFetchSparkline(sym)));
-  finRenderGrid();
-}
-
-async function finFetchSparkline(symbol) {
-  // 5d 30m interval gives ~48 data points — good for a compact sparkline
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=30m&range=5d`;
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return;
-    const json = await res.json();
-    const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-    if (!closes) return;
-    // Filter out nulls
-    const valid = closes.filter(v => v != null);
-    if (finPriceData[symbol]) {
-      finPriceData[symbol].sparkline = valid;
-    }
-  } catch {
-    // non-fatal
-  }
-}
-
-async function finFetchSingleChart(symbol) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     const result = json?.chart?.result?.[0];
     if (!result) throw new Error('No result');
+
     const meta = result.meta;
     const price = meta.regularMarketPrice;
-    const prev = meta.chartPreviousClose || meta.previousClose;
-    const change = price - prev;
-    const changePct = (change / prev) * 100;
+    const prev  = meta.chartPreviousClose ?? meta.previousClose ?? price;
+    const change    = price - prev;
+    const changePct = prev !== 0 ? (change / prev) * 100 : 0;
+
+    // Sparkline: use close prices from indicators, filter nulls
+    const closes = result.indicators?.quote?.[0]?.close ?? [];
+    const sparkline = closes.filter(v => v != null);
+
     finPriceData[symbol] = {
       price,
       change,
       changePct,
-      name: meta.instrumentType === 'CRYPTOCURRENCY' ? symbol.replace('-USD','') : symbol,
+      name: meta.shortName || meta.longName || symbol,
       currency: meta.currency || 'USD',
       up: change >= 0,
-      sparkline: [],
+      sparkline,
       loading: false,
       error: false,
     };
-  } catch {
+  } catch (err) {
+    console.warn(`finFetchOne(${symbol}) failed:`, err.message);
     finPriceData[symbol] = { ...(finPriceData[symbol] || {}), error: true, loading: false };
   }
 }
@@ -177,7 +117,8 @@ async function finRefresh() {
   });
   finRenderGrid();
 
-  await finFetchPrices(finTickers);
+  // Fetch all in parallel
+  await Promise.allSettled(finTickers.map(sym => finFetchOne(sym)));
 
   finLoading = false;
   if (btn) btn.classList.remove('spinning');
@@ -200,22 +141,17 @@ function finSparklineSVG(data, up) {
   });
 
   const pathD = `M ${pts.join(' L ')}`;
-  // Fill path (close to bottom)
   const fillD = `M ${pts[0]} L ${pts.join(' L ')} L ${W},${H} L 0,${H} Z`;
 
-  const color = up ? '#22c55e' : '#ef4444';
+  const color     = up ? '#22c55e' : '#ef4444';
   const fillColor = up ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
 
-  return `
-    <svg class="fin-sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-      <path d="${fillD}" fill="${fillColor}" stroke="none"/>
-      <path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
+  return `<svg class="fin-sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${fillD}" fill="${fillColor}" stroke="none"/><path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 // ─── Render ────────────────────────────────────────────────────────────────────
 function finRenderGrid() {
-  const grid = document.getElementById('fin-grid');
+  const grid  = document.getElementById('fin-grid');
   const empty = document.getElementById('fin-empty');
   if (!grid) return;
 
@@ -234,13 +170,13 @@ function finRenderGrid() {
       return `
         <div class="fin-card fin-card--loading" data-symbol="${escapeHtml(sym)}">
           <div class="fin-card-left">
-            <span class="fin-symbol fin-skeleton-line" style="width:52px;height:18px;"></span>
-            <span class="fin-name fin-skeleton-line" style="width:90px;height:13px;margin-top:4px;"></span>
+            <span class="fin-symbol">${escapeHtml(sym)}</span>
+            <span class="fin-name fin-skeleton-line" style="width:80px;height:12px;margin-top:4px;border-radius:4px;display:block;"></span>
           </div>
-          <div class="fin-sparkline-wrap fin-skeleton-block" style="width:120px;height:40px;"></div>
+          <div class="fin-sparkline-wrap fin-skeleton-block" style="height:40px;border-radius:6px;"></div>
           <div class="fin-card-right">
-            <span class="fin-skeleton-line" style="width:60px;height:18px;"></span>
-            <span class="fin-skeleton-line" style="width:50px;height:14px;margin-top:4px;"></span>
+            <span class="fin-skeleton-line" style="width:64px;height:16px;border-radius:4px;display:block;"></span>
+            <span class="fin-skeleton-line" style="width:48px;height:12px;margin-top:5px;border-radius:4px;display:block;"></span>
           </div>
           <button class="fin-remove-btn" onclick="finRemoveTicker('${escapeHtml(sym)}')" aria-label="Remove ${escapeHtml(sym)}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -256,6 +192,8 @@ function finRenderGrid() {
             <span class="fin-symbol">${escapeHtml(sym)}</span>
             <span class="fin-name fin-error-hint">Not found</span>
           </div>
+          <div class="fin-sparkline-wrap"></div>
+          <div class="fin-card-right"></div>
           <button class="fin-remove-btn" onclick="finRemoveTicker('${escapeHtml(sym)}')" aria-label="Remove ${escapeHtml(sym)}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -263,11 +201,11 @@ function finRenderGrid() {
     }
 
     // Normal data card
-    const priceStr = finFormatPrice(d.price, d.currency);
+    const priceStr  = finFormatPrice(d.price, d.currency);
     const changeStr = (d.change >= 0 ? '+' : '') + d.change.toFixed(2);
-    const pctStr   = (d.changePct >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%';
+    const pctStr    = (d.changePct >= 0 ? '+' : '') + d.changePct.toFixed(2) + '%';
     const colorClass = d.up ? 'fin-up' : 'fin-down';
-    const sparkSVG = finSparklineSVG(d.sparkline, d.up);
+    const sparkSVG  = finSparklineSVG(d.sparkline, d.up);
 
     return `
       <div class="fin-card ${colorClass}" data-symbol="${escapeHtml(sym)}">
@@ -293,9 +231,8 @@ function finRenderGrid() {
 // ─── Format helpers ────────────────────────────────────────────────────────────
 function finFormatPrice(price, currency) {
   if (price == null) return '—';
-  // Crypto can have many decimals, stocks typically 2
-  const isCrypto = price < 1;
-  const decimals = isCrypto ? 4 : 2;
+  // High-value assets (BTC): 2 decimals; low-value crypto: 4+ decimals
+  const decimals = price >= 1 ? 2 : price >= 0.01 ? 4 : 6;
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -315,37 +252,28 @@ function finShowStatus(msg, isError = false) {
   el.textContent = msg;
   el.className = 'fin-status' + (isError ? ' fin-status--error' : '');
   el.hidden = false;
-  if (!isError) {
-    setTimeout(() => { el.hidden = true; }, 3000);
-  }
+  if (!isError) setTimeout(() => { el.hidden = true; }, 3000);
 }
 
 // ─── Init ──────────────────────────────────────────────────────────────────────
 function finInit() {
   finLoadTickers();
-  finRenderGrid();   // render empty/skeleton state immediately
 
   if (finTickers.length > 0) {
-    // Mark all as loading and fetch
-    finTickers.forEach(sym => {
-      finPriceData[sym] = { loading: true };
-    });
+    // Show skeletons immediately, then fetch
+    finTickers.forEach(sym => { finPriceData[sym] = { loading: true }; });
     finRenderGrid();
-    finFetchPrices(finTickers);
+    Promise.allSettled(finTickers.map(sym => finFetchOne(sym))).then(() => finRenderGrid());
   } else {
-    const empty = document.getElementById('fin-empty');
-    if (empty) empty.hidden = false;
+    finRenderGrid(); // shows empty state
   }
 }
 
-// Called when Finance tab becomes visible
+// Called when Finance tab becomes visible (from switchTab in audiobook.js)
 function finOnTabActivate() {
-  // Refresh if no data yet, or if last fetch was > 5 minutes ago
-  const hasData = finTickers.every(sym => finPriceData[sym] && !finPriceData[sym].loading && finPriceData[sym].price != null);
-  if (!hasData && finTickers.length > 0) {
-    finRefresh();
-  }
+  // Refresh if any ticker has no data or errored
+  const needsRefresh = finTickers.some(sym => !finPriceData[sym] || finPriceData[sym].error);
+  if (needsRefresh && !finLoading) finRefresh();
 }
 
-// Run init immediately (data loads in background)
 finInit();
