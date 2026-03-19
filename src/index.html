@@ -237,6 +237,33 @@
     </button>
   </nav>
 
+
+  <!-- ── Call a Friend modal ──────────────────────────────────────────────────── -->
+  <div id="caf-backdrop" onclick="cafClose()"></div>
+  <div id="caf-modal" role="dialog" aria-modal="true" aria-label="Call a Friend">
+    <p class="caf-title">📞 Call a Friend</p>
+    <p class="caf-subtitle">Let fate decide…</p>
+
+    <!-- Slot reel window -->
+    <div class="caf-reel-window">
+      <div class="caf-reel-fade-top"></div>
+      <div class="caf-reel-fade-bottom"></div>
+      <div class="caf-reel-highlight"></div>
+      <div class="caf-reel" id="caf-reel"></div>
+    </div>
+
+    <!-- Winner reveal (shown after spin) -->
+    <div class="caf-winner" id="caf-winner" hidden>
+      <p class="caf-winner-name" id="caf-winner-name"></p>
+      <p class="caf-winner-msg">Give them a call! 🎉</p>
+    </div>
+
+    <div class="caf-actions">
+      <button class="caf-spin-btn" id="caf-spin-btn" onclick="cafSpin()">Spin</button>
+      <button class="caf-close-btn" onclick="cafClose()">Maybe later</button>
+    </div>
+  </div>
+
   <script src="helpers.js"></script>
   <script src="finance.js"></script>
   <script src="channels.js"></script>

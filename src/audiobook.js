@@ -111,6 +111,7 @@ function switchTab(tab) {
   const filterBar       = document.getElementById("filter-bar");
   const watchTally      = document.getElementById("watch-tally");
   const headerTitle     = document.getElementById("header-title");
+  const cafBtn          = document.getElementById("caf-btn");
 
   // Hide all sections first
   feedSection.hidden = true;
@@ -118,12 +119,14 @@ function switchTab(tab) {
   if (finSection) finSection.hidden = true;
   filterBar.hidden   = true;
   watchTally.hidden  = true;
+  if (cafBtn) cafBtn.hidden = true;
 
   if (tab === "feed") {
     feedSection.hidden = false;
     filterBar.hidden   = document.getElementById("filter-pills").children.length === 0;
     watchTally.hidden  = !watchTally.textContent.trim();
     headerTitle.textContent = "My Feed";
+    if (cafBtn) cafBtn.hidden = false;
   } else if (tab === "finance") {
     if (finSection) finSection.hidden = false;
     headerTitle.textContent = "Finance";

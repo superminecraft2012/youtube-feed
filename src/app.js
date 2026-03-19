@@ -399,3 +399,88 @@ function timeAgo(date) {
 })();
 
 loadFeed();
+
+// ─── Call a Friend ─────────────────────────────────────────────────────────────
+const CAF_NAMES = ["Eric", "Cole", "Melis", "Tyler", "Kohki", "Blake", "Dad", "Mom", "Minsong", "Popov"];
+
+let cafSpinning = false;
+
+function cafOpen() {
+  const modal    = document.getElementById('caf-modal');
+  const backdrop = document.getElementById('caf-backdrop');
+  const winner   = document.getElementById('caf-winner');
+  const spinBtn  = document.getElementById('caf-spin-btn');
+  const reel     = document.getElementById('caf-reel');
+
+  // Reset state
+  winner.hidden = true;
+  spinBtn.disabled = false;
+  spinBtn.textContent = 'Spin';
+  cafSpinning = false;
+
+  // Populate reel with names (loop 4x for continuous feel)
+  const repeated = [...CAF_NAMES, ...CAF_NAMES, ...CAF_NAMES, ...CAF_NAMES];
+  reel.innerHTML = repeated.map(n => `<div class="caf-reel-item">${n}</div>`).join('');
+  reel.style.transition = 'none';
+  reel.style.transform  = 'translateY(0)';
+
+  backdrop.classList.add('visible');
+  modal.classList.add('visible');
+}
+
+function cafClose() {
+  document.getElementById('caf-modal').classList.remove('visible');
+  document.getElementById('caf-backdrop').classList.remove('visible');
+}
+
+function cafSpin() {
+  if (cafSpinning) return;
+  cafSpinning = true;
+
+  const spinBtn = document.getElementById('caf-spin-btn');
+  const winner  = document.getElementById('caf-winner');
+  const reel    = document.getElementById('caf-reel');
+
+  spinBtn.disabled = true;
+  winner.hidden = true;
+
+  // Pick winner
+  const winnerIndex = Math.floor(Math.random() * CAF_NAMES.length);
+  const winnerName  = CAF_NAMES[winnerIndex];
+
+  // Item height (must match CSS)
+  const ITEM_H = 56;
+  const VISIBLE_ITEMS = 5; // how many show in the window
+  const CENTER_OFFSET  = Math.floor(VISIBLE_ITEMS / 2); // 2
+
+  // We'll land on the 3rd repetition of winnerIndex
+  // Total items = 40 (4 * 10)
+  // Target = 2*10 + winnerIndex (mid-reel to avoid edge)
+  const targetPos = 2 * CAF_NAMES.length + winnerIndex;
+  const translateY = -(targetPos * ITEM_H) + (CENTER_OFFSET * ITEM_H);
+
+  // Phase 1: fast spin (blur effect via CSS)
+  reel.style.transition = 'transform 2.2s cubic-bezier(0.15, 0, 0.1, 1)';
+  reel.style.transform  = `translateY(${translateY}px)`;
+
+  // Phase 2: after spin settles, show winner
+  setTimeout(() => {
+    // Highlight the winner item
+    const items = reel.querySelectorAll('.caf-reel-item');
+    items.forEach((el, i) => {
+      el.classList.toggle('caf-reel-item--winner', i === targetPos);
+    });
+
+    // Reveal winner card
+    winner.hidden = false;
+    document.getElementById('caf-winner-name').textContent = winnerName;
+    winner.classList.remove('caf-winner--pop');
+    void winner.offsetWidth; // force reflow
+    winner.classList.add('caf-winner--pop');
+
+    // Update spin button to allow re-spin
+    spinBtn.disabled = false;
+    spinBtn.textContent = 'Spin again';
+    cafSpinning = false;
+  }, 2400);
+}
