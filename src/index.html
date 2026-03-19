@@ -91,12 +91,6 @@
       <span id="header-title">My Feed</span>
     </div>
     <div class="header-actions">
-      <button class="hdr-btn quests-btn" id="quests-btn" onclick="openQuests()" aria-label="Quests">
-        🗒️ <span>Quests</span>
-      </button>
-      <button class="hdr-btn wardrobe-btn" id="wardrobe-btn" onclick="openWardrobe()" aria-label="Wardrobe">
-        🎨 <span>Wardrobe</span>
-      </button>
       <button class="caf-btn" id="caf-btn" onclick="cafOpen()" aria-label="Call a Friend">
         📞 <span>Call a Friend</span>
       </button>
@@ -343,9 +337,16 @@
     </div>
 
     <div id="settings-view">
-      <button class="settings-row" id="settings-theme-row" onclick="openWardrobe()" aria-label="Theme">
+      <button class="settings-row" id="settings-quests-row" onclick="openQuestsFromSettings()" aria-label="Quests">
+        <span class="settings-row-emoji">🗒️</span>
+        <span class="settings-row-label">Quests</span>
+        <span class="settings-row-subtitle">Daily + legendary</span>
+        <span class="settings-row-arrow" aria-hidden="true">→</span>
+      </button>
+
+      <button class="settings-row" id="settings-theme-row" onclick="openWardrobe()" aria-label="Wardrobe">
         <span class="settings-row-emoji">🎨</span>
-        <span class="settings-row-label">Theme</span>
+        <span class="settings-row-label">Wardrobe</span>
         <span class="settings-row-subtitle" id="settings-theme-subtitle"></span>
         <span class="settings-row-arrow" aria-hidden="true">→</span>
       </button>
