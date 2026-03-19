@@ -343,4 +343,59 @@ function timeAgo(date) {
   return date.toLocaleDateString();
 }
 
+
+// ─── Pull-to-Refresh ──────────────────────────────────────────────────────────
+(function initPullToRefresh() {
+  const THRESHOLD = 72;    // px of pull needed to trigger
+  const MAX_PULL  = 100;   // max visual travel
+  let startY = 0;
+  let pulling = false;
+  let indicator = null;
+
+  function getIndicator() {
+    if (!indicator) indicator = document.getElementById('ptr-indicator');
+    return indicator;
+  }
+
+  document.addEventListener('touchstart', e => {
+    // Only activate on feed tab, when scrolled to very top
+    const feedSection = document.getElementById('section-feed');
+    if (!feedSection || feedSection.hidden) return;
+    if (window.scrollY > 2) return;
+    startY = e.touches[0].clientY;
+    pulling = true;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy <= 0) { pulling = false; return; }
+
+    const travel = Math.min(dy * 0.45, MAX_PULL);
+    const ind = getIndicator();
+    if (!ind) return;
+
+    ind.style.transform = `translateY(${travel}px)`;
+    ind.classList.toggle('ptr-ready', travel >= THRESHOLD * 0.45);
+  }, { passive: true });
+
+  document.addEventListener('touchend', async () => {
+    if (!pulling) return;
+    pulling = false;
+
+    const ind = getIndicator();
+    if (!ind) return;
+
+    const wasReady = ind.classList.contains('ptr-ready');
+    ind.classList.remove('ptr-ready');
+    ind.style.transform = '';
+
+    if (wasReady) {
+      ind.classList.add('ptr-spinning');
+      await loadFeed();
+      ind.classList.remove('ptr-spinning');
+    }
+  });
+})();
+
 loadFeed();
