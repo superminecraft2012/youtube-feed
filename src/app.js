@@ -43,7 +43,7 @@ function startTaglineCycle() {
 // Kick off taglines after initial animation settles
 setTimeout(startTaglineCycle, 950);
 
-const SPLASH_MIN_MS = 1400;
+const SPLASH_MIN_MS = 3000;
 const splashStart = Date.now();
 
 function dismissSplash() {
