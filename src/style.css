@@ -304,6 +304,16 @@ input, select { font: inherit; color: inherit; }
   100% { transform: scale(1); }
 }
 
+/* Expand and fade out following the ring */
+.splash-icon.splash-icon--exit {
+  animation: splash-icon-exit 0.5s var(--ease-in) forwards;
+}
+
+@keyframes splash-icon-exit {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2); }
+}
+
 .splash-loader {
   display: flex;
   gap: 5px;
