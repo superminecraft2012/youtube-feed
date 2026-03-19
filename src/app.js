@@ -54,9 +54,29 @@ function dismissSplash() {
   const delay = Math.max(0, SPLASH_MIN_MS - elapsed);
 
   setTimeout(() => {
-    clearInterval(_taglineTimer);
-    splash.classList.add("hide");
-    splash.addEventListener("transitionend", () => splash.classList.add("gone"), { once: true });
+    // Enter resting state: loader dots fade, ring pulses, icon becomes tappable
+    splash.classList.add("splash-ready");
+    const ring = splash.querySelector(".splash-logo-ring");
+    if (ring) ring.classList.add("ring-idle");
+
+    const icon = splash.querySelector(".splash-icon");
+    if (icon) {
+      icon.addEventListener("click", () => {
+        clearInterval(_taglineTimer);
+
+        // Ring bursts outward
+        if (ring) {
+          ring.classList.remove("ring-idle");
+          ring.classList.add("ring-exit");
+        }
+
+        // After ring exit, fade the whole splash out
+        setTimeout(() => {
+          splash.classList.add("hide");
+          splash.addEventListener("transitionend", () => splash.classList.add("gone"), { once: true });
+        }, 500);
+      }, { once: true });
+    }
   }, delay);
 }
 

@@ -176,6 +176,27 @@ input, select { font: inherit; color: inherit; }
   100% { opacity: 0.4; transform: scale(1); }
 }
 
+/* Gentle idle pulse once loading is done */
+.splash-logo-ring.ring-idle {
+  animation: splash-ring-idle 2s ease-in-out infinite;
+}
+
+@keyframes splash-ring-idle {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%       { opacity: 0.9; transform: scale(1.07); }
+}
+
+/* Burst outward on icon tap */
+.splash-logo-ring.ring-exit {
+  animation: splash-ring-exit 0.6s var(--ease-in) forwards;
+}
+
+@keyframes splash-ring-exit {
+  0%   { opacity: 0.4; transform: scale(1); }
+  20%  { opacity: 1;   transform: scale(1.15); }
+  100% { opacity: 0;   transform: scale(3); }
+}
+
 .splash-icon {
   width: 80px;
   height: 80px;
@@ -257,6 +278,23 @@ input, select { font: inherit; color: inherit; }
 @keyframes splash-tagline-cycle {
   0%   { opacity: 0; transform: translateY(5px); }
   100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Hide loader dots once loading is done (ready to tap) */
+#intro-splash.splash-ready .splash-loader {
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+/* Make icon tappable once ready */
+#intro-splash.splash-ready .splash-icon {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-out);
+}
+
+#intro-splash.splash-ready .splash-icon:active {
+  transform: scale(0.92);
 }
 
 .splash-loader {
