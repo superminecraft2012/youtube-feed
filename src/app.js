@@ -1,7 +1,49 @@
 // ─── Intro Splash ─────────────────────────────────────────────────────────────
-// Dismisses the intro splash once the feed data arrives (or after a minimum
-// display time so the animation always has a chance to complete).
-const SPLASH_MIN_MS = 1400; // minimum time to show the splash
+const SPLASH_TAGLINES = [
+  "Want to call a friend?",
+  "Want to go to the gym?",
+  "Want to stretch?",
+  "Could you take a walk?",
+  "Have you had water today?",
+  "Want to read instead?",
+  "Could this wait until later?",
+  "Want to go outside?",
+  "Have you eaten yet?",
+  "Worth doing something first?",
+  "Want to meditate for 5 min?",
+  "Could you text someone you miss?",
+];
+
+let _taglineTimer = null;
+
+function startTaglineCycle() {
+  const el = document.getElementById("splash-tagline");
+  if (!el) return;
+
+  // Pick a random starting tagline (not the same one every time)
+  let idx = Math.floor(Math.random() * SPLASH_TAGLINES.length);
+  el.textContent = SPLASH_TAGLINES[idx];
+
+  _taglineTimer = setInterval(() => {
+    // Fade out, swap text, fade in
+    el.style.opacity = "0";
+    el.style.transform = "translateY(-4px)";
+    el.style.transition = "opacity 0.2s ease-in, transform 0.2s ease-in";
+
+    setTimeout(() => {
+      idx = (idx + 1) % SPLASH_TAGLINES.length;
+      el.textContent = SPLASH_TAGLINES[idx];
+      el.style.transition = "opacity 0.3s cubic-bezier(0.16,1,0.3,1), transform 0.3s cubic-bezier(0.16,1,0.3,1)";
+      el.style.opacity = "1";
+      el.style.transform = "translateY(0)";
+    }, 220);
+  }, 2200);
+}
+
+// Kick off taglines after initial animation settles
+setTimeout(startTaglineCycle, 950);
+
+const SPLASH_MIN_MS = 1400;
 const splashStart = Date.now();
 
 function dismissSplash() {
@@ -12,6 +54,7 @@ function dismissSplash() {
   const delay = Math.max(0, SPLASH_MIN_MS - elapsed);
 
   setTimeout(() => {
+    clearInterval(_taglineTimer);
     splash.classList.add("hide");
     splash.addEventListener("transitionend", () => splash.classList.add("gone"), { once: true });
   }, delay);
