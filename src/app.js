@@ -397,6 +397,7 @@ function timeAgo(date) {
     const ind = getIndicator();
     if (!ind) return;
 
+    ind.classList.add('ptr-pulling');
     ind.style.transform = `translateX(-50%) translateY(${travel}px)`;
     ind.classList.toggle('ptr-ready', travel >= THRESHOLD * 0.45);
   }, { passive: true });
@@ -409,7 +410,7 @@ function timeAgo(date) {
     if (!ind) return;
 
     const wasReady = ind.classList.contains('ptr-ready');
-    ind.classList.remove('ptr-ready');
+    ind.classList.remove('ptr-ready', 'ptr-pulling');
     ind.style.transform = 'translateX(-50%) translateY(0px)';
 
     if (wasReady) {
