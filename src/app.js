@@ -394,11 +394,16 @@ function timeAgo(date) {
     if (dy <= 0) { pulling = false; return; }
 
     const travel = Math.min(dy * 0.45, MAX_PULL);
+    const progress = travel / MAX_PULL;                // 0 → 1
+    const scaleY = 1 + progress * 0.65;               // stretch tall
+    const scaleX = 1 - progress * 0.22;               // squish wide
+
     const ind = getIndicator();
     if (!ind) return;
 
-    ind.classList.add('ptr-pulling');
-    ind.style.transform = `translateX(-50%) translateY(${travel}px)`;
+    // ptr-stretching disables CSS transitions so the icon tracks the finger instantly
+    ind.classList.add('ptr-pulling', 'ptr-stretching');
+    ind.style.transform = `translateX(-50%) translateY(${travel}px) scaleY(${scaleY}) scaleX(${scaleX})`;
     ind.classList.toggle('ptr-ready', travel >= THRESHOLD * 0.45);
   }, { passive: true });
 
@@ -410,10 +415,18 @@ function timeAgo(date) {
     if (!ind) return;
 
     const wasReady = ind.classList.contains('ptr-ready');
-    ind.classList.remove('ptr-ready', 'ptr-pulling');
-    ind.style.transform = 'translateX(-50%) translateY(0px)';
+    ind.classList.remove('ptr-ready', 'ptr-stretching'); // re-enable spring transition
+
+    // rAF ensures the transition is active before we set the snap-back target
+    requestAnimationFrame(() => {
+      ind.style.transform = 'translateX(-50%) translateY(0px) scaleY(1) scaleX(1)';
+      if (!wasReady) ind.classList.remove('ptr-pulling');
+    });
 
     if (wasReady) {
+      // Wait for spring snap-back to finish, then switch to rainbow spin
+      await new Promise(r => setTimeout(r, 400));
+      ind.classList.remove('ptr-pulling');
       ind.classList.add('ptr-spinning');
       await loadFeed();
       ind.classList.remove('ptr-spinning');
