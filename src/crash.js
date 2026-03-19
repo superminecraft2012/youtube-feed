@@ -164,6 +164,9 @@ function drawIdleCanvas() {
   ctx.font = "bold 14px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText("Place a bet to launch the rocket", w / 2, h / 2);
+  // Hide multiplier overlay in idle state so it doesn't overlap canvas text
+  const mult = document.getElementById("crash-multiplier");
+  if (mult) mult.hidden = true;
 }
 
 // ── Game loop ───────────────────────────────────────────────────────────────
@@ -230,9 +233,11 @@ function crashPlace() {
   graphPoints = [[0, 1]];
   crashState = "FLYING";
 
-  // UI: hide controls, show cashout
+  // UI: hide controls, show cashout, show multiplier
   document.getElementById("crash-controls").hidden = true;
   document.getElementById("crash-cashout-btn").hidden = false;
+  const multEl = document.getElementById("crash-multiplier");
+  if (multEl) multEl.hidden = false;
   updateCashoutBtn();
 
   const status = document.getElementById("crash-status");
@@ -302,8 +307,6 @@ function startCooldown() {
     drawIdleCanvas();
     const status = document.getElementById("crash-status");
     if (status) { status.textContent = ""; status.className = "crash-status-overlay"; }
-    const mult = document.getElementById("crash-multiplier");
-    if (mult) { mult.textContent = "1.00x"; mult.className = "crash-multiplier-overlay"; }
   }, COOLDOWN_MS);
 }
 

@@ -2827,8 +2827,8 @@ header {
   border-top: 1px solid var(--border);
   transform: translateY(100%);
   transition: transform 280ms var(--ease-out);
-  padding: var(--space-6) var(--space-6) calc(var(--space-8) + env(safe-area-inset-bottom));
-  max-height: calc(100dvh - 24px);
+  padding: max(var(--space-6), env(safe-area-inset-top)) var(--space-6) calc(var(--space-8) + env(safe-area-inset-bottom));
+  max-height: 100dvh;
   overflow: auto;
 }
 
