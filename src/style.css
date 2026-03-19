@@ -379,8 +379,14 @@ header {
   justify-content: center;
   color: var(--text-faint);
   pointer-events: none;
-  transition: color var(--transition-fast), transform 0.25s var(--ease-out), opacity 0.15s ease;
+  /* Spring easing on snap-back; disabled during active drag via ptr-stretching */
+  transition: color var(--transition-fast), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
   opacity: 0;
+}
+
+/* Disable transitions while finger is dragging for instant tracking */
+#ptr-indicator.ptr-stretching {
+  transition: none;
 }
 
 #ptr-indicator.ptr-pulling {
