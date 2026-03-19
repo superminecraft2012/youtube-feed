@@ -10,35 +10,72 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="MyFeed" />
-  <meta name="theme-color" content="#0f0f0f" />
+  <meta name="theme-color" content="#090909" />
   <link rel="apple-touch-icon" href="/icon.png" />
 
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+  <!-- ── Intro Splash ─────────────────────────────────────────────────────── -->
+  <div id="intro-splash" aria-hidden="true">
+    <div class="splash-logo">
+      <div class="splash-logo-ring"></div>
+      <div class="splash-icon">
+        <!-- Play triangle -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="6,3 20,12 6,21" />
+        </svg>
+      </div>
+    </div>
+    <p class="splash-wordmark">My <span>Feed</span></p>
+    <p class="splash-sub">Your channels, your pace</p>
+    <div class="splash-loader">
+      <div class="splash-loader-dot"></div>
+      <div class="splash-loader-dot"></div>
+      <div class="splash-loader-dot"></div>
+    </div>
+  </div>
+
+  <!-- ── Header ───────────────────────────────────────────────────────────── -->
   <header>
-    <span class="logo">▶</span>
-    <h1 id="header-title">My Feed</h1>
-    <button class="refresh-btn" onclick="location.reload()" aria-label="Refresh">↻ Refresh</button>
+    <div class="header-logo">
+      <div class="header-logo-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="6,3 20,12 6,21" />
+        </svg>
+      </div>
+      <span id="header-title">My Feed</span>
+    </div>
+    <div class="header-actions">
+      <button class="refresh-btn" id="refresh-btn" onclick="location.reload()" aria-label="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        Refresh
+      </button>
+    </div>
   </header>
 
-  <!-- ── Feed tab content ─────────────────────────────────────────── -->
+  <!-- ── Feed tab content ─────────────────────────────────────────────────── -->
   <div id="section-feed">
     <div id="filter-bar" hidden>
       <div id="filter-pills"></div>
     </div>
     <div id="watch-tally" hidden></div>
     <p id="status" hidden></p>
+    <div id="skeleton-loader" class="skeleton-grid" style="display:none">
+      <!-- Skeletons injected by JS -->
+    </div>
     <main id="feed"></main>
   </div>
 
-  <!-- ── Audiobooks tab content ───────────────────────────────────── -->
+  <!-- ── Audiobooks tab content ────────────────────────────────────────────── -->
   <div id="section-audiobooks" hidden>
 
     <!-- Library view -->
     <div id="ab-library-view">
-
-      <!-- Filter pills + sort -->
       <div class="ab-library-toolbar">
         <div class="ab-filter-row">
           <button class="ab-filter-pill active" data-filter="all"        onclick="abSetLibraryFilter('all')">All</button>
@@ -46,26 +83,33 @@
           <button class="ab-filter-pill"        data-filter="unstarted"  onclick="abSetLibraryFilter('unstarted')">Unstarted</button>
           <button class="ab-filter-pill"        data-filter="finished"   onclick="abSetLibraryFilter('finished')">Finished</button>
           <select id="ab-sort-select" class="ab-sort-select" onchange="abSetLibrarySort(this.value)">
-            <option value="lastPlayed">Recently Played</option>
+            <option value="lastPlayed">Recent</option>
             <option value="az">A → Z</option>
             <option value="za">Z → A</option>
           </select>
         </div>
       </div>
-
       <div id="ab-library"></div>
     </div>
 
     <!-- Player view -->
     <div id="ab-player-view" hidden>
       <div class="ab-player-header">
-        <button class="ab-back-btn" onclick="closePlayer()">← Library</button>
+        <button class="ab-back-btn" onclick="closePlayer()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Library
+        </button>
       </div>
 
       <div class="ab-player-body">
+        <div class="ab-cover-art" id="ab-cover-art">🎧</div>
 
-        <p id="ab-player-title"  class="ab-player-title"></p>
-        <p id="ab-player-author" class="ab-player-author"></p>
+        <div class="ab-player-info">
+          <p id="ab-player-title"  class="ab-player-title"></p>
+          <p id="ab-player-author" class="ab-player-author"></p>
+        </div>
 
         <!-- Chapter selector (multi-file books only) -->
         <select id="ab-chapter-select" class="ab-chapter-select" onchange="abSelectChapter()" hidden></select>
@@ -79,13 +123,13 @@
 
         <!-- Main controls: bookmark | back 30 | play/pause | fwd 30 -->
         <div class="ab-controls">
-          <button id="ab-bookmark-btn" class="ab-ctrl-btn ab-ctrl-sm" onclick="abAddBookmark()" title="Bookmark current position">🔖</button>
-          <button class="ab-ctrl-btn" onclick="abSkip(-30)" title="Back 30s">−30</button>
-          <button id="ab-play-btn" class="ab-ctrl-btn ab-play" onclick="abTogglePlay()">▶</button>
-          <button class="ab-ctrl-btn" onclick="abSkip(30)" title="Forward 30s">+30</button>
+          <button id="ab-bookmark-btn" class="ab-ctrl-btn ab-ctrl-sm" onclick="abAddBookmark()" title="Bookmark" aria-label="Add bookmark">🔖</button>
+          <button class="ab-ctrl-btn" onclick="abSkip(-30)" title="Back 30s" aria-label="Back 30 seconds">−30</button>
+          <button id="ab-play-btn" class="ab-ctrl-btn ab-play" onclick="abTogglePlay()" aria-label="Play/Pause">▶</button>
+          <button class="ab-ctrl-btn" onclick="abSkip(30)" title="Forward 30s" aria-label="Forward 30 seconds">+30</button>
         </div>
 
-        <!-- Speed selector — includes 0.75× -->
+        <!-- Speed selector -->
         <div class="ab-speed-row">
           <button class="ab-speed-btn"        data-speed="0.75" onclick="abSetSpeed(0.75)">0.75×</button>
           <button class="ab-speed-btn active" data-speed="1"    onclick="abSetSpeed(1)">1×</button>
@@ -108,32 +152,43 @@
 
       </div>
     </div>
-
   </div>
 
   <!-- Hidden audio element -->
   <audio id="ab-audio" preload="metadata"></audio>
 
-  <!-- ── Reason modal (feed tab) ──────────────────────────────────── -->
+  <!-- ── Reason modal ──────────────────────────────────────────────────────── -->
   <div id="modal-backdrop" onclick="closeModal()"></div>
   <div id="reason-modal" role="dialog" aria-modal="true" aria-label="Why are you watching this?">
     <p class="modal-question">Why are you watching this?</p>
     <div class="modal-options">
-      <button onclick="selectReason('Learning')">📚 Learning</button>
-      <button onclick="selectReason('Entertainment')">😂 Entertainment</button>
-      <button onclick="selectReason('Background')">🎵 Background</button>
-      <button onclick="selectReason('Habit')">😔 Habit</button>
+      <button onclick="selectReason('Learning')">
+        <span>📚</span>
+        <span>Learning</span>
+      </button>
+      <button onclick="selectReason('Entertainment')">
+        <span>😂</span>
+        <span>Entertainment</span>
+      </button>
+      <button onclick="selectReason('Background')">
+        <span>🎵</span>
+        <span>Background</span>
+      </button>
+      <button onclick="selectReason('Habit')">
+        <span>😔</span>
+        <span>Habit</span>
+      </button>
     </div>
     <button class="modal-cancel" onclick="closeModal()">Cancel</button>
   </div>
 
-  <!-- ── Bottom tab bar ───────────────────────────────────────────── -->
+  <!-- ── Bottom tab bar ────────────────────────────────────────────────────── -->
   <nav id="tab-bar">
-    <button class="tab-btn active" data-tab="feed"       onclick="switchTab('feed')">
+    <button class="tab-btn active" data-tab="feed" onclick="switchTab('feed')">
       <span class="tab-icon">▶</span>
       <span class="tab-label">Feed</span>
     </button>
-    <button class="tab-btn"        data-tab="audiobooks" onclick="switchTab('audiobooks')">
+    <button class="tab-btn" data-tab="audiobooks" onclick="switchTab('audiobooks')">
       <span class="tab-icon">🎧</span>
       <span class="tab-label">Books</span>
     </button>

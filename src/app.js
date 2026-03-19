@@ -1,3 +1,44 @@
+// ─── Intro Splash ─────────────────────────────────────────────────────────────
+// Dismisses the intro splash once the feed data arrives (or after a minimum
+// display time so the animation always has a chance to complete).
+const SPLASH_MIN_MS = 1400; // minimum time to show the splash
+const splashStart = Date.now();
+
+function dismissSplash() {
+  const splash = document.getElementById("intro-splash");
+  if (!splash || splash.classList.contains("hide")) return;
+
+  const elapsed = Date.now() - splashStart;
+  const delay = Math.max(0, SPLASH_MIN_MS - elapsed);
+
+  setTimeout(() => {
+    splash.classList.add("hide");
+    splash.addEventListener("transitionend", () => splash.classList.add("gone"), { once: true });
+  }, delay);
+}
+
+// ─── Skeleton Loader ──────────────────────────────────────────────────────────
+function showSkeletons(count = 6) {
+  const skeletonEl = document.getElementById("skeleton-loader");
+  if (!skeletonEl) return;
+  skeletonEl.innerHTML = Array.from({ length: count }, () => `
+    <div class="skeleton-card">
+      <div class="skeleton-thumb"></div>
+      <div class="skeleton-info">
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line"></div>
+      </div>
+    </div>
+  `).join("");
+  skeletonEl.style.display = "";
+}
+
+function hideSkeletons() {
+  const skeletonEl = document.getElementById("skeleton-loader");
+  if (skeletonEl) skeletonEl.style.display = "none";
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let allVideos = [];
 let activeFilter = null;   // null = show all; string = handle to filter
@@ -32,8 +73,10 @@ async function loadFeed() {
   const statusEl = document.getElementById("status");
   const feed = document.getElementById("feed");
 
-  statusEl.textContent = `Loading ${CHANNELS.length} channels…`;
-  statusEl.hidden = false;
+  // Show skeleton loading cards while we wait
+  showSkeletons(6);
+
+  statusEl.hidden = true;
 
   const results = await Promise.allSettled(
     CHANNELS.map(c => fetchFeed(c.handle))
@@ -46,7 +89,8 @@ async function loadFeed() {
     .filter(v => v.id && v.title)
     .sort((a, b) => b.published - a.published);
 
-  statusEl.hidden = true;
+  hideSkeletons();
+  dismissSplash();
 
   if (allVideos.length === 0) {
     feed.innerHTML = `<p class="empty">No videos found. ${failed} channel(s) failed to load.</p>`;
@@ -106,7 +150,11 @@ function handleCardTap(videoId) {
   }
   expandedId = videoId;
   const card = document.querySelector(`[data-id="${videoId}"]`);
-  if (card) card.classList.add("expanded");
+  if (card) {
+    card.classList.add("expanded");
+    // Smooth scroll the card into view if partially hidden
+    card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 // Collapse card when tapping outside
@@ -132,18 +180,26 @@ function renderFeed() {
 
   feed.innerHTML = videos.map(v => {
     const durationStr = v.duration ? formatDuration(Number(v.duration)) : "";
-    const descSnippet = v.description ? v.description.slice(0, 200) + (v.description.length > 200 ? "…" : "") : "";
+    const descSnippet = v.description ? v.description.slice(0, 180) + (v.description.length > 180 ? "…" : "") : "";
     return `
     <div class="card" data-id="${escapeHtml(v.id)}" onclick="handleCardTap('${escapeHtml(v.id)}')">
       <div class="thumb-wrap">
         <img src="${escapeHtml(v.thumbnail || '')}" alt="" loading="lazy" />
+        <span class="channel-badge">${escapeHtml(v.channel || '')}</span>
         ${durationStr ? `<span class="duration-badge">${escapeHtml(durationStr)}</span>` : ""}
       </div>
       <div class="info">
         <p class="title">${escapeHtml(v.title || '')}</p>
-        <p class="meta">${escapeHtml(v.channel || '')} · ${timeAgo(v.published)}</p>
+        <p class="meta">
+          <span class="meta-channel">${escapeHtml(v.channel || '')}</span>
+          <span class="meta-sep">·</span>
+          <span class="meta-time">${timeAgo(v.published)}</span>
+        </p>
         ${descSnippet ? `<p class="description">${escapeHtml(descSnippet)}</p>` : ""}
-        <button class="watch-btn" onclick="event.stopPropagation(); openVideo('${escapeHtml(v.id)}')">▶ Watch</button>
+        <button class="watch-btn" onclick="event.stopPropagation(); openVideo('${escapeHtml(v.id)}')">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polygon points="6,3 20,12 6,21"/></svg>
+          Watch
+        </button>
       </div>
     </div>`;
   }).join("");

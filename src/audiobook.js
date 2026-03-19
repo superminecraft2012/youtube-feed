@@ -11,9 +11,6 @@ let abMetaTimeout = null;
 const abAudio = document.getElementById("ab-audio");
 
 // ─── Proxy URL ────────────────────────────────────────────────────────────────
-// Routes audio through the Netlify function which injects Basic Auth server-side.
-// Direct cross-origin requests to ultra.cc fail because the seedbox doesn't
-// return CORS headers, which browsers require for credentialed cross-origin fetches.
 function abProxyUrl(rawUrl) {
   const params = new URLSearchParams({ url: rawUrl, t: PROXY_TOKEN });
   return `/.netlify/functions/audio-proxy?${params}`;
@@ -22,9 +19,6 @@ function abProxyUrl(rawUrl) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // PERSISTENCE
 // ═══════════════════════════════════════════════════════════════════════════════
-
-// ─── Progress ─────────────────────────────────────────────────────────────────
-// Schema: { fileIndex, position, speed, finished, lastPlayed }
 
 function abGetProgress(bookId) {
   try {
@@ -66,8 +60,6 @@ function abStopSaveTimer() {
 }
 
 // ─── Bookmarks ────────────────────────────────────────────────────────────────
-// Schema: [{ fileIndex, position, note, createdAt }]
-
 function abGetBookmarks(bookId) {
   try {
     const raw = localStorage.getItem(`audiobook-bookmarks-${bookId}`);
@@ -80,14 +72,10 @@ function abSaveBookmarks(bookId, bookmarks) {
 }
 
 // ─── Metadata cache ───────────────────────────────────────────────────────────
-// Schema: { cover, description, fetchedAt }
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
 async function abFetchMeta(book) {
-  // 1. In-memory cache
   if (abMetaCache[book.id]) return abMetaCache[book.id];
-
-  // 2. localStorage cache (if not stale)
   try {
     const cached = JSON.parse(localStorage.getItem(`audiobook-meta-${book.id}`));
     if (cached && Date.now() - cached.fetchedAt < THIRTY_DAYS) {
@@ -95,8 +83,6 @@ async function abFetchMeta(book) {
       return cached;
     }
   } catch {}
-
-  // 3. Fetch from Netlify function
   try {
     const params = new URLSearchParams({ title: book.title, author: book.author });
     const res = await fetch(`/.netlify/functions/book-meta?${params}`);
@@ -133,8 +119,6 @@ function switchTab(tab) {
     watchTally.hidden  = !watchTally.textContent.trim();
     headerTitle.textContent = "My Feed";
     refreshBtn.hidden  = false;
-    // Make sure the playing book bubbles to the top when we come back.
-    // (Sort-by "Recently Played" relies on `lastPlayed`.)
     abSaveProgress({ lastPlayed: Date.now() });
   } else {
     feedSection.hidden = true;
@@ -154,7 +138,6 @@ function switchTab(tab) {
 let abLibraryLoaded = false;
 
 async function loadLibrary(forceRefresh = false) {
-  // Already loaded this session and not forcing a refresh
   if (abLibraryLoaded && !forceRefresh) {
     renderAbLibrary();
     return;
@@ -163,7 +146,6 @@ async function loadLibrary(forceRefresh = false) {
   const grid = document.getElementById("ab-library");
   grid.innerHTML = `<p class="ab-library-empty ab-loading">Scanning library…</p>`;
 
-  // Try session cache first (survives tab switches, cleared on reload)
   if (!forceRefresh) {
     try {
       const cached = sessionStorage.getItem("ab-library-cache");
@@ -212,7 +194,6 @@ function abSetLibrarySort(sort) {
 }
 
 function abGetFilteredSortedBooks() {
-  // Build progress map once — reused by renderAbLibrary to avoid double reads
   const pMap = {};
   BOOKS.forEach(b => { pMap[b.id] = abGetProgress(b.id); });
 
@@ -287,10 +268,20 @@ async function openBook(bookId) {
 
   renderAbPlayer();
   loadAbFile(progress?.position ?? 0);
+
+  // Load cover art asynchronously
+  const coverEl = document.getElementById("ab-cover-art");
+  if (coverEl) {
+    coverEl.innerHTML = "🎧"; // reset
+    abFetchMeta(book).then(meta => {
+      if (meta?.cover && coverEl) {
+        coverEl.innerHTML = `<img src="${escapeHtml(meta.cover)}" alt="${escapeHtml(book.title)} cover" />`;
+      }
+    });
+  }
 }
 
 function closePlayer() {
-  // Mark as recently played when user returns to the library.
   abSaveProgress({ lastPlayed: Date.now() });
   abStopSaveTimer();
   document.getElementById("ab-player-view").hidden  = true;
@@ -309,14 +300,12 @@ function renderAbPlayer() {
   document.getElementById("ab-player-title").textContent  = book.title;
   document.getElementById("ab-player-author").textContent = book.author;
 
-  // Speed — restore saved value
   const speed = progress?.speed ?? 1;
   abAudio.playbackRate = speed;
   document.querySelectorAll(".ab-speed-btn").forEach(btn =>
     btn.classList.toggle("active", parseFloat(btn.dataset.speed) === speed)
   );
 
-  // Chapter selector
   const chapterSel = document.getElementById("ab-chapter-select");
   if (book.files.length > 1) {
     chapterSel.hidden = false;
@@ -327,13 +316,11 @@ function renderAbPlayer() {
     chapterSel.hidden = true;
   }
 
-  // Finish button
   const finishBtn = document.getElementById("ab-finish-btn");
   const isFinished = !!progress?.finished;
   finishBtn.textContent = isFinished ? "✓ Finished" : "Mark as Finished";
   finishBtn.classList.toggle("finished", isFinished);
 
-  // Bookmarks
   const list = document.getElementById("ab-bookmarks-list");
   list.hidden = !abBookmarksExpanded;
   renderAbBookmarks();
@@ -345,7 +332,6 @@ function loadAbFile(seekTo = 0) {
   const file = abCurrentBook.files[abFileIndex];
   if (!file) return;
 
-  // Reset display immediately so stale duration from previous book doesn't linger
   if (abDurationEl)    abDurationEl.textContent = "--:--";
   if (abCurrentTimeEl) abCurrentTimeEl.textContent = "0:00";
   if (abScrubEl)       abScrubEl.value = 0;
@@ -353,12 +339,11 @@ function loadAbFile(seekTo = 0) {
   abHideAudioError();
 
   clearTimeout(abMetaTimeout);
-  // If metadata never loads (common with non-streamable .m4b), show a helpful message.
   abMetaTimeout = setTimeout(() => {
     const duration = abAudio.duration;
     if (!duration || isNaN(duration)) {
       abShowAudioError(
-        "⚠️ Can't load audio metadata. Some .m4b files require re-muxing (moov atom at start) or converting to MP3."
+        "⚠️ Can't load audio metadata. Some .m4b files require re-muxing or converting to MP3."
       );
     }
   }, 12000);
@@ -367,7 +352,6 @@ function loadAbFile(seekTo = 0) {
   abAudio.load();
 
   const onMeta = () => {
-    // Update duration display as soon as metadata arrives (don't wait for playback)
     if (abDurationEl && abAudio.duration && !isNaN(abAudio.duration)) {
       abDurationEl.textContent = formatDuration(Math.floor(abAudio.duration));
     }
@@ -393,13 +377,12 @@ function abSkip(seconds) {
   );
 }
 
-// Feature 1: Speed memory — saved inside abSaveProgress
 function abSetSpeed(speed) {
   abAudio.playbackRate = speed;
   document.querySelectorAll(".ab-speed-btn").forEach(btn =>
     btn.classList.toggle("active", parseFloat(btn.dataset.speed) === speed)
   );
-  abSaveProgress(); // persists speed immediately
+  abSaveProgress();
 }
 
 function abSelectChapter() {
@@ -411,7 +394,6 @@ function abSelectChapter() {
   if (wasPlaying) abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
 }
 
-// Feature 3: Mark as Finished
 function abMarkFinished() {
   if (!abCurrentBook) return;
   const existing   = abGetProgress(abCurrentBook.id) || {};
@@ -426,7 +408,7 @@ function abMarkFinished() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE 2: BOOKMARKS
+// BOOKMARKS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function abAddBookmark() {
@@ -441,7 +423,6 @@ function abAddBookmark() {
   abSaveBookmarks(abCurrentBook.id, bookmarks);
   renderAbBookmarks();
 
-  // Brief visual feedback on the button
   const btn = document.getElementById("ab-bookmark-btn");
   btn.textContent = "✅";
   btn.disabled = true;
@@ -521,7 +502,6 @@ abAudio.addEventListener("play", () => {
   abStartSaveTimer();
   abSaveProgress({ lastPlayed: Date.now() });
 
-  // Feature 5: MediaSession
   if (abCurrentBook) {
     abUpdateMediaSession(abCurrentBook, abMetaCache[abCurrentBook.id] || null);
   }
@@ -533,12 +513,10 @@ abAudio.addEventListener("pause", () => {
   abSaveProgress();
 });
 
-// Cache DOM references for timeupdate (fires ~4x/sec — avoid repeated lookups)
 const abCurrentTimeEl = document.getElementById("ab-current-time");
 const abDurationEl    = document.getElementById("ab-duration");
 const abScrubEl       = document.getElementById("ab-scrub");
 
-// Throttle timeupdate to ~1/sec — sufficient for time display, saves DOM writes
 let abLastTimeUpdate = 0;
 abAudio.addEventListener("timeupdate", () => {
   const now = performance.now();
@@ -549,121 +527,83 @@ abAudio.addEventListener("timeupdate", () => {
   const duration = abAudio.duration || 0;
 
   if (abCurrentTimeEl) abCurrentTimeEl.textContent = formatDuration(Math.floor(current));
-  if (abDurationEl)    abDurationEl.textContent     = formatDuration(Math.floor(duration));
-  if (abScrubEl)       abScrubEl.value              = duration > 0 ? (current / duration) * 100 : 0;
+  if (abDurationEl && duration && !isNaN(duration)) {
+    abDurationEl.textContent = formatDuration(Math.floor(duration));
+  }
+  if (abScrubEl && duration) {
+    abScrubEl.value = (current / duration) * 100;
+  }
 
-  // MediaSession position state (throttled along with the rest)
-  if ("mediaSession" in navigator && duration && !isNaN(duration)) {
-    try {
-      navigator.mediaSession.setPositionState({
-        duration,
-        playbackRate: abAudio.playbackRate,
-        position:     current,
-      });
-    } catch {}
+  // Auto-advance to next chapter
+  if (duration > 0 && current >= duration - 0.5 && abCurrentBook) {
+    if (abFileIndex < abCurrentBook.files.length - 1) {
+      abFileIndex++;
+      const wasPlaying = !abAudio.paused;
+      renderAbPlayer();
+      loadAbFile(0);
+      if (wasPlaying) abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
+    }
   }
 });
 
 abAudio.addEventListener("error", () => {
-  const err   = abAudio.error;
-  const codes = { 1: "Aborted", 2: "Network error", 3: "Decode error", 4: "Format not supported" };
-  const msg   = codes[err?.code] || `Unknown error (${err?.code})`;
-  console.error("Audio error", err?.code, err?.message, abAudio.src);
-  abShowAudioError(msg);
-  clearTimeout(abMetaTimeout);
-  abMetaTimeout = null;
+  abShowAudioError("⚠️ Audio failed to load. Check your connection or try another file.");
 });
 
+// Scrub bar interaction
+if (abScrubEl) {
+  abScrubEl.addEventListener("input", () => {
+    if (abAudio.duration) {
+      abAudio.currentTime = (abScrubEl.value / 100) * abAudio.duration;
+    }
+  });
+}
+
+// ─── Play/Pause UI ────────────────────────────────────────────────────────────
+function updateAbPlayPause() {
+  const btn = document.getElementById("ab-play-btn");
+  if (!btn) return;
+  btn.textContent = abAudio.paused ? "▶" : "⏸";
+  btn.setAttribute("aria-label", abAudio.paused ? "Play" : "Pause");
+}
+
+// ─── Audio error helpers ──────────────────────────────────────────────────────
+let abErrorEl = null;
+
 function abShowAudioError(msg) {
-  let el = document.getElementById("ab-audio-error");
-  if (!el) {
-    el = document.createElement("p");
-    el.id = "ab-audio-error";
-    el.className = "ab-audio-error";
-    document.querySelector(".ab-scrub-row")?.insertAdjacentElement("beforebegin", el);
-  }
-  el.textContent = `⚠️ ${msg}`;
-  el.hidden = false;
+  abHideAudioError();
+  abErrorEl = document.createElement("p");
+  abErrorEl.className = "ab-audio-error";
+  abErrorEl.textContent = msg;
+  const body = document.querySelector(".ab-player-body");
+  if (body) body.insertBefore(abErrorEl, body.firstChild);
 }
 
 function abHideAudioError() {
-  const el = document.getElementById("ab-audio-error");
-  if (el) el.hidden = true;
-}
-
-abAudio.addEventListener("ended", () => {
-  abStopSaveTimer();
-  if (abFileIndex < abCurrentBook.files.length - 1) {
-    // Auto-advance chapter
-    abFileIndex++;
-    abSaveProgress();
-    renderAbPlayer();
-    loadAbFile(0);
-    abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
-  } else {
-    updateAbPlayPause();
+  if (abErrorEl) {
+    abErrorEl.remove();
+    abErrorEl = null;
   }
-});
-
-function updateAbPlayPause() {
-  const btn = document.getElementById("ab-play-btn");
-  if (btn) btn.textContent = abAudio.paused ? "▶" : "⏸";
 }
 
-// Scrub bar interaction
-abScrubEl.addEventListener("input", e => {
-  if (abAudio.duration) {
-    abAudio.currentTime = (parseFloat(e.target.value) / 100) * abAudio.duration;
-  }
-});
-
-// Save on page hide (lock screen, tab switch)
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) abSaveProgress();
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE 5: MEDIASESSION (lock screen controls + cover art)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// Register action handlers once — they reference current state via closures over
-// globals (abFileIndex, abCurrentBook), so they stay correct without re-registration.
-if ("mediaSession" in navigator) {
-  navigator.mediaSession.setActionHandler("play",          () => abAudio.play());
-  navigator.mediaSession.setActionHandler("pause",         () => abAudio.pause());
-  navigator.mediaSession.setActionHandler("seekbackward",  () => abSkip(-30));
-  navigator.mediaSession.setActionHandler("seekforward",   () => abSkip(30));
-  navigator.mediaSession.setActionHandler("previoustrack", () => {
-    if (abFileIndex > 0) {
-      abFileIndex--;
-      renderAbPlayer();
-      loadAbFile(0);
-      abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
-    }
-  });
-  navigator.mediaSession.setActionHandler("nexttrack", () => {
-    if (abCurrentBook && abFileIndex < abCurrentBook.files.length - 1) {
-      abFileIndex++;
-      renderAbPlayer();
-      loadAbFile(0);
-      abAudio.addEventListener("canplay", () => abAudio.play(), { once: true });
-    }
-  });
-}
-
-// Only update metadata (not action handlers) on each play
+// ─── MediaSession ─────────────────────────────────────────────────────────────
 function abUpdateMediaSession(book, meta) {
   if (!("mediaSession" in navigator)) return;
 
-  const chapter = book.files[abFileIndex];
-  const artwork = meta?.cover
-    ? [{ src: meta.cover, sizes: "512x512", type: "image/jpeg" }]
-    : [];
+  const artwork = [];
+  if (meta?.cover) {
+    artwork.push({ src: meta.cover, sizes: "512x512", type: "image/jpeg" });
+  }
 
   navigator.mediaSession.metadata = new MediaMetadata({
-    title:   book.title,
-    artist:  book.author,
-    album:   chapter?.chapter || "",
+    title:  book.title,
+    artist: book.author,
+    album:  "Audiobook",
     artwork,
   });
+
+  navigator.mediaSession.setActionHandler("play",    () => abAudio.play());
+  navigator.mediaSession.setActionHandler("pause",   () => abAudio.pause());
+  navigator.mediaSession.setActionHandler("seekbackward", () => abSkip(-30));
+  navigator.mediaSession.setActionHandler("seekforward",  () => abSkip(30));
 }
