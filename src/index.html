@@ -20,6 +20,7 @@
       loadThemeState,
       getAllThemes,
       generateTheme,
+      openThemeDrop,
     } from "./themeEngine.js";
     import {
       getQuestState,
@@ -56,6 +57,7 @@
 
     window.showLootBox = showLootBox;
     window.showPassiveToast = showPassiveToast;
+    window.openThemeDrop = openThemeDrop;
 
     // Initializes quest state (and performs first-launch silent unlock if missing).
     getQuestState();
@@ -373,6 +375,9 @@
       <div id="wardrobe-empty" class="wardrobe-empty">
         Complete quests to unlock themes. Open the app daily to earn drops.
       </div>
+      <button class="wardrobe-arcade-btn" onclick="openArcade()">
+        <span>🚀</span> Arcade
+      </button>
     </div>
   </div>
 
@@ -415,6 +420,64 @@
     <div id="lb-particles-count" hidden>10</div>
   </div>
 
+  <!-- ── Arcade bottom sheet ────────────────────────────────────────────── -->
+  <div id="arcade-backdrop" onclick="closeArcade()"></div>
+  <div id="arcade-modal" role="dialog" aria-modal="true" aria-label="Arcade" hidden>
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="arcade-header">
+      <p class="arcade-title">🚀 Arcade</p>
+      <button class="sheet-close-btn" onclick="closeArcade()" aria-label="Close">×</button>
+    </div>
+
+    <!-- Coin balance bar -->
+    <div class="crash-balance-bar">
+      <span class="crash-coin-icon">🪙</span>
+      <span class="crash-balance" id="crash-balance">0</span>
+      <button class="crash-buy-roll-btn" id="crash-buy-roll-btn" onclick="crashBuyRoll()">
+        🎲 Roll Theme <span class="crash-roll-cost">(150🪙)</span>
+      </button>
+    </div>
+
+    <!-- Crash game area -->
+    <div class="crash-game">
+      <div class="crash-canvas-wrap">
+        <canvas id="crash-canvas"></canvas>
+        <div class="crash-multiplier-overlay" id="crash-multiplier">1.00x</div>
+        <div class="crash-status-overlay" id="crash-status"></div>
+      </div>
+
+      <!-- Bet controls -->
+      <div class="crash-controls" id="crash-controls">
+        <div class="crash-bet-row">
+          <button class="crash-bet-adj" onclick="crashAdjustBet(-10)">−10</button>
+          <input type="number" id="crash-bet-input" class="crash-bet-input" value="10" min="1" />
+          <button class="crash-bet-adj" onclick="crashAdjustBet(10)">+10</button>
+          <button class="crash-bet-adj" onclick="crashBetMax()">Max</button>
+        </div>
+        <button class="crash-play-btn" id="crash-play-btn" onclick="crashPlace()">
+          Place Bet
+        </button>
+      </div>
+
+      <!-- Cashout button (shown during flight) -->
+      <button class="crash-cashout-btn" id="crash-cashout-btn" onclick="crashCashout()" hidden>
+        Cash Out <span id="crash-cashout-amount"></span>
+      </button>
+    </div>
+
+    <!-- Recent crash history -->
+    <div class="crash-history" id="crash-history"></div>
+
+    <!-- Sacrifice section -->
+    <div class="crash-sacrifice-section">
+      <p class="crash-section-title">🔥 Sacrifice Themes for Coins</p>
+      <div class="crash-sacrifice-grid" id="crash-sacrifice-grid"></div>
+      <p class="crash-sacrifice-empty" id="crash-sacrifice-empty" hidden>
+        No themes to sacrifice. Complete quests to earn more.
+      </p>
+    </div>
+  </div>
+
   <!-- ── Passive drop toast ──────────────────────────────────────────────── -->
   <div id="passive-toast" hidden aria-live="polite" role="button" tabindex="0">
     <p id="passive-toast-text"></p>
@@ -426,5 +489,6 @@
   <script src="audiobooks.js"></script>
   <script src="app.js"></script>
   <script src="audiobook.js"></script>
+  <script src="crash.js"></script>
 </body>
 </html>
