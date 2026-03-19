@@ -379,12 +379,21 @@ header {
   justify-content: center;
   color: var(--text-faint);
   pointer-events: none;
-  transition: color var(--transition-fast), transform 0.25s var(--ease-out);
+  transition: color var(--transition-fast), transform 0.25s var(--ease-out), opacity 0.15s ease;
+  opacity: 0;
+}
+
+#ptr-indicator.ptr-pulling {
   opacity: 0.85;
 }
 
 #ptr-indicator.ptr-ready {
   color: var(--accent);
+}
+
+#ptr-indicator.ptr-spinning {
+  opacity: 1;
+  animation: ptrRainbow 1.5s linear infinite;
 }
 
 #ptr-indicator.ptr-spinning svg {
@@ -393,6 +402,16 @@ header {
 
 @keyframes ptrSpin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes ptrRainbow {
+  0%   { color: hsl(0,   80%, 65%); }
+  16%  { color: hsl(60,  80%, 65%); }
+  33%  { color: hsl(120, 80%, 65%); }
+  50%  { color: hsl(180, 80%, 65%); }
+  66%  { color: hsl(240, 80%, 65%); }
+  83%  { color: hsl(300, 80%, 65%); }
+  100% { color: hsl(360, 80%, 65%); }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
