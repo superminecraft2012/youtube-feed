@@ -310,10 +310,25 @@ function renderTally() {
 }
 
 function deepLink(videoId) {
+  // Try the native YouTube app first.
+  // If the app opens, the page loses focus/visibility — we detect that
+  // and cancel the web fallback so it doesn't fire when you come back.
   window.location = `youtube://www.youtube.com/watch?v=${videoId}`;
-  setTimeout(() => {
-    window.location = `https://www.youtube.com/watch?v=${videoId}`;
-  }, 1500);
+
+  const fallbackDelay = 1800;
+  let fallbackTimer = setTimeout(() => {
+    // Only open the web URL if the page is still visible (app didn't open)
+    if (!document.hidden) {
+      window.location = `https://www.youtube.com/watch?v=${videoId}`;
+    }
+  }, fallbackDelay);
+
+  // If the YouTube app opened, the page will hide — cancel the fallback
+  const cancelFallback = () => {
+    clearTimeout(fallbackTimer);
+    document.removeEventListener("visibilitychange", cancelFallback);
+  };
+  document.addEventListener("visibilitychange", cancelFallback, { once: true });
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
