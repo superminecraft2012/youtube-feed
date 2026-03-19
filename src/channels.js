@@ -31,4 +31,5 @@ const CHANNELS = [
   { name: "Nexpo", handle: "Nexpo" },
   { name: "Gamingwith NCK", handle: "gamingwithnck7447" },
   { name: "Felix's Toys Review", handle: "felixstoysreview403" },
+  { name: "In The World Of AI", handle: "intheworldofai" },
 ];
