@@ -375,7 +375,7 @@ function timeAgo(date) {
     const ind = getIndicator();
     if (!ind) return;
 
-    ind.style.transform = `translateY(${travel}px)`;
+    ind.style.transform = `translateX(-50%) translateY(${travel}px)`;
     ind.classList.toggle('ptr-ready', travel >= THRESHOLD * 0.45);
   }, { passive: true });
 
@@ -388,7 +388,7 @@ function timeAgo(date) {
 
     const wasReady = ind.classList.contains('ptr-ready');
     ind.classList.remove('ptr-ready');
-    ind.style.transform = '';
+    ind.style.transform = 'translateX(-50%) translateY(0px)';
 
     if (wasReady) {
       ind.classList.add('ptr-spinning');
