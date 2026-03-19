@@ -61,33 +61,34 @@ function dismissSplash() {
 
     const icon = splash.querySelector(".splash-icon");
     if (icon) {
-      // Haptic fires immediately on finger-down for best mobile feel
-      icon.addEventListener("touchstart", () => {
-        navigator.vibrate?.(8);
-      }, { once: true, passive: true });
+      let exitTriggered = false;
 
-      icon.addEventListener("click", () => {
+      // Press down: shrink immediately
+      icon.addEventListener("pointerdown", () => {
+        icon.style.transition = "transform 0.12s ease-out";
+        icon.style.transform = "scale(0.86)";
+      });
+
+      // Release: expand + fade from wherever it currently is, no jump
+      icon.addEventListener("pointerup", () => {
+        if (exitTriggered) return;
+        exitTriggered = true;
         clearInterval(_taglineTimer);
 
-        // Bounce animation + ring burst start together
-        icon.classList.add("splash-icon--tapped");
+        icon.style.transition = "transform 0.55s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.5s ease-in";
+        icon.style.transform = "scale(2.2)";
+        icon.style.opacity = "0";
+
         if (ring) {
           ring.classList.remove("ring-idle");
           ring.classList.add("ring-exit");
         }
 
-        // After bounce settles, icon expands and fades following the ring
-        setTimeout(() => {
-          icon.classList.remove("splash-icon--tapped");
-          icon.classList.add("splash-icon--exit");
-        }, 450);
-
-        // After all exit animations finish, dissolve the splash
         setTimeout(() => {
           splash.classList.add("hide");
           splash.addEventListener("transitionend", () => splash.classList.add("gone"), { once: true });
-        }, 900);
-      }, { once: true });
+        }, 600);
+      });
     }
   }, delay);
 }
