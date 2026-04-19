@@ -80,227 +80,28 @@ function dismissSplash() {
   }, delay);
 }
 
-// ─── Skeleton Loader ──────────────────────────────────────────────────────────
-function showSkeletons(count = 6) {
-  const skeletonEl = document.getElementById("skeleton-loader");
-  if (!skeletonEl) return;
-  skeletonEl.innerHTML = Array.from({ length: count }, () => `
-    <div class="skeleton-card">
-      <div class="skeleton-thumb"></div>
-      <div class="skeleton-info">
-        <div class="skeleton-line"></div>
-        <div class="skeleton-line"></div>
-        <div class="skeleton-line"></div>
-      </div>
-    </div>
-  `).join("");
-  skeletonEl.style.display = "";
-}
-
-function hideSkeletons() {
-  const skeletonEl = document.getElementById("skeleton-loader");
-  if (skeletonEl) skeletonEl.style.display = "none";
-}
-
 // ─── State ────────────────────────────────────────────────────────────────────
-let allVideos = [];
-let activeFilter = null;   // null = show all; string = handle to filter
-let expandedId = null;     // currently expanded card videoId
-let pendingVideoId = null; // video waiting on reason modal
+let pendingHandle = null; // channel waiting on reason modal
 
-// ─── Data fetching ─────────────────────────────────────────────────────────────
-const rssParser = new DOMParser(); // reuse across all RSS parses
+// ─── Channel grid ─────────────────────────────────────────────────────────────
+function renderChannelGrid() {
+  const grid = document.getElementById("channel-grid");
+  if (!grid) return;
 
-function parseRSS(xml, handle) {
-  const doc = rssParser.parseFromString(xml, "application/xml");
-  return [...doc.querySelectorAll("entry")].map(entry => ({
-    id: entry.querySelector("videoId")?.textContent,
-    title: entry.querySelector("title")?.textContent,
-    channel: entry.querySelector("author name")?.textContent,
-    published: new Date(entry.querySelector("published")?.textContent),
-    thumbnail: entry.querySelector("thumbnail")?.getAttribute("url"),
-    duration: entry.querySelector("duration")?.getAttribute("seconds"),
-    description: entry.querySelector("description")?.textContent?.trim() || "",
-    handle
-  }));
-}
-
-const RSS_CACHE_KEY = "rss-feed-cache";
-const RSS_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
-
-async function loadFeed(forceRefresh = false) {
-  const statusEl = document.getElementById("status");
-  const feed = document.getElementById("feed");
-
-  statusEl.hidden = true;
-
-  // Check client-side cache first (skip on pull-to-refresh)
-  if (!forceRefresh) {
-    try {
-      const cached = sessionStorage.getItem(RSS_CACHE_KEY);
-      if (cached) {
-        const { videos, fetchedAt } = JSON.parse(cached);
-        if (Date.now() - fetchedAt < RSS_CACHE_TTL) {
-          allVideos = videos.map(v => ({ ...v, published: new Date(v.published) }));
-          renderFilterPills();
-          renderFeed();
-          renderTally();
-          dismissSplash();
-          return;
-        }
-      }
-    } catch {}
-  }
-
-  showSkeletons(6);
-
-  // Single batch request for all channels
-  const handles = CHANNELS.map(c => c.handle).join(",");
-  let failed = 0;
-
-  try {
-    const res = await fetch(`/.netlify/functions/rss-batch?handles=${encodeURIComponent(handles)}`);
-    if (!res.ok) throw new Error(`Batch fetch failed: ${res.status}`);
-    const { results, errors } = await res.json();
-
-    failed = Object.keys(errors || {}).length;
-    allVideos = Object.entries(results)
-      .flatMap(([handle, xml]) => parseRSS(xml, handle))
-      .filter(v => v.id && v.title)
-      .sort((a, b) => b.published - a.published);
-
-    // Cache the results
-    try {
-      sessionStorage.setItem(RSS_CACHE_KEY, JSON.stringify({
-        videos: allVideos,
-        fetchedAt: Date.now(),
-      }));
-    } catch {}
-  } catch (err) {
-    console.warn("Batch RSS fetch failed:", err.message);
-    allVideos = [];
-    failed = CHANNELS.length;
-  }
-
-  hideSkeletons();
-  dismissSplash();
-
-  if (allVideos.length === 0) {
-    feed.innerHTML = `<p class="empty">No videos found. ${failed} channel(s) failed to load.</p>`;
-    return;
-  }
-
-  renderFilterPills();
-  renderFeed();
-  renderTally();
-
-  if (failed > 0) {
-    statusEl.textContent = `${failed} channel(s) failed to load`;
-    statusEl.classList.add("warn");
-    statusEl.hidden = false;
-  }
-}
-
-// ─── Feature 1: Channel filter pills ──────────────────────────────────────────
-function renderFilterPills() {
-  const bar = document.getElementById("filter-bar");
-  const pillsEl = document.getElementById("filter-pills");
-
-  // Only show channels that actually returned videos
-  const seenHandles = new Set(allVideos.map(v => v.handle));
-  const channels = CHANNELS
-    .filter(c => seenHandles.has(c.handle))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const allPill = `<button class="pill active" data-handle="" onclick="filterByChannel('')">All</button>`;
-  const channelPills = channels.map(c =>
-    `<button class="pill" data-handle="${escapeHtml(c.handle)}" onclick="filterByChannel('${escapeHtml(c.handle)}')">${escapeHtml(c.name)}</button>`
-  ).join("");
-
-  pillsEl.innerHTML = allPill + channelPills;
-  bar.hidden = false;
-}
-
-function filterByChannel(handle) {
-  // Empty string = "All"
-  activeFilter = handle || null;
-
-  document.querySelectorAll(".pill").forEach(pill => {
-    pill.classList.toggle("active", pill.dataset.handle === (handle || ""));
-  });
-
-  // Collapse any expanded card when filter changes
-  expandedId = null;
-  renderFeed();
-}
-
-// ─── Feature 3: Card expand/collapse ──────────────────────────────────────────
-function handleCardTap(videoId) {
-  if (expandedId === videoId) return; // Watch button handles opening
-  if (expandedId) {
-    const prev = document.querySelector(`[data-id="${expandedId}"]`);
-    if (prev) prev.classList.remove("expanded");
-  }
-  expandedId = videoId;
-  const card = document.querySelector(`[data-id="${videoId}"]`);
-  if (card) {
-    card.classList.add("expanded");
-    // Smooth scroll the card into view if partially hidden
-    card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-}
-
-// Collapse card when tapping outside
-document.getElementById("feed").addEventListener("click", e => {
-  if (!e.target.closest(".card") && expandedId) {
-    const card = document.querySelector(`[data-id="${expandedId}"]`);
-    if (card) card.classList.remove("expanded");
-    expandedId = null;
-  }
-});
-
-// ─── Render ────────────────────────────────────────────────────────────────────
-function renderFeed() {
-  const feed = document.getElementById("feed");
-  const videos = activeFilter
-    ? allVideos.filter(v => v.handle === activeFilter)
-    : allVideos;
-
-  if (videos.length === 0) {
-    feed.innerHTML = `<p class="empty">No videos for this channel.</p>`;
-    return;
-  }
-
-  feed.innerHTML = videos.map(v => {
-    const durationStr = v.duration ? formatDuration(Number(v.duration)) : "";
-    const descSnippet = v.description ? v.description.slice(0, 180) + (v.description.length > 180 ? "…" : "") : "";
+  const sorted = [...CHANNELS].sort((a, b) => a.name.localeCompare(b.name));
+  grid.innerHTML = sorted.map(c => {
+    const initial = (c.name.trim()[0] || "?").toUpperCase();
     return `
-    <div class="card" data-id="${escapeHtml(v.id)}" onclick="handleCardTap('${escapeHtml(v.id)}')">
-      <div class="thumb-wrap">
-        <img src="${escapeHtml(v.thumbnail || '')}" alt="" loading="lazy" />
-        <span class="channel-badge">${escapeHtml(v.channel || '')}</span>
-        ${durationStr ? `<span class="duration-badge">${escapeHtml(durationStr)}</span>` : ""}
-      </div>
-      <div class="info">
-        <p class="title">${escapeHtml(v.title || '')}</p>
-        <p class="meta">
-          <span class="meta-channel">${escapeHtml(v.channel || '')}</span>
-          <span class="meta-sep">·</span>
-          <span class="meta-time">${timeAgo(v.published)}</span>
-        </p>
-        ${descSnippet ? `<p class="description">${escapeHtml(descSnippet)}</p>` : ""}
-        <button class="watch-btn" onclick="event.stopPropagation(); openVideo('${escapeHtml(v.id)}')">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polygon points="6,3 20,12 6,21"/></svg>
-          Watch
-        </button>
-      </div>
-    </div>`;
+      <button class="channel-tile" onclick="openChannel('${escapeHtml(c.handle)}')">
+        <span class="channel-tile-initial" aria-hidden="true">${escapeHtml(initial)}</span>
+        <span class="channel-tile-name">${escapeHtml(c.name)}</span>
+      </button>`;
   }).join("");
 }
 
-// ─── Feature 2: Reason modal ───────────────────────────────────────────────────
-function openVideo(videoId) {
-  pendingVideoId = videoId;
+// ─── Reason modal ─────────────────────────────────────────────────────────────
+function openChannel(handle) {
+  pendingHandle = handle;
   document.getElementById("modal-backdrop").classList.add("visible");
   document.getElementById("reason-modal").classList.add("visible");
 }
@@ -308,27 +109,25 @@ function openVideo(videoId) {
 function closeModal() {
   document.getElementById("modal-backdrop").classList.remove("visible");
   document.getElementById("reason-modal").classList.remove("visible");
-  pendingVideoId = null;
+  pendingHandle = null;
 }
 
 function selectReason(reason) {
-  const videoId = pendingVideoId;
-  logReason(reason, videoId);
+  const handle = pendingHandle;
+  logReason(reason, handle);
   closeModal();
   renderTally();
-  // Passive theme drop (non-interrupting). Trigger before deepLink/navigation.
   try {
     const drop = typeof window.tryPassiveDrop === "function" ? window.tryPassiveDrop("video") : null;
     if (drop && typeof window.showPassiveToast === "function") window.showPassiveToast(drop);
   } catch {}
-  deepLink(videoId);
+  deepLinkChannel(handle);
 }
 
-function logReason(reason, videoId) {
+function logReason(reason, handle) {
   const log = JSON.parse(localStorage.getItem("watchLog") || "[]");
-  log.push({ videoId, reason, time: Date.now() });
+  log.push({ handle, reason, time: Date.now() });
 
-  // Trim stale entries at most once per day to avoid filtering the entire array on every watch
   const lastTrim = Number(localStorage.getItem("watchLogLastTrim") || 0);
   const now = Date.now();
   if (now - lastTrim > 86400000) {
@@ -344,12 +143,17 @@ function logReason(reason, videoId) {
 function renderTally() {
   const log = JSON.parse(localStorage.getItem("watchLog") || "[]");
 
-  // Only count entries from today
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayLog = log.filter(e => e.time >= todayStart.getTime());
 
-  if (todayLog.length === 0) return;
+  const tallyEl = document.getElementById("watch-tally");
+  if (!tallyEl) return;
+
+  if (todayLog.length === 0) {
+    tallyEl.hidden = true;
+    return;
+  }
 
   const counts = {};
   todayLog.forEach(entry => { counts[entry.reason] = (counts[entry.reason] || 0) + 1; });
@@ -359,115 +163,26 @@ function renderTally() {
     .map(([reason, n]) => `${labels[reason] || ""} ${n} ${reason}`)
     .join(" · ");
 
-  const tallyEl = document.getElementById("watch-tally");
   tallyEl.textContent = `Today: ${parts}`;
   tallyEl.hidden = false;
 }
 
-function deepLink(videoId) {
-  // Try the native YouTube app first.
-  // If the app opens, the page loses focus/visibility — we detect that
-  // and cancel the web fallback so it doesn't fire when you come back.
-  window.location = `youtube://www.youtube.com/watch?v=${videoId}`;
+function deepLinkChannel(handle) {
+  window.location = `youtube://www.youtube.com/@${handle}`;
 
-  const fallbackDelay = 1800;
-  let fallbackTimer = setTimeout(() => {
-    // Only open the web URL if the page is still visible (app didn't open)
+  const fallbackTimer = setTimeout(() => {
     if (!document.hidden) {
-      window.location = `https://www.youtube.com/watch?v=${videoId}`;
+      window.location = `https://www.youtube.com/@${handle}`;
     }
-  }, fallbackDelay);
+  }, 1800);
 
-  // If the YouTube app opened, the page will hide — cancel the fallback
-  const cancelFallback = () => {
-    clearTimeout(fallbackTimer);
-    document.removeEventListener("visibilitychange", cancelFallback);
-  };
-  document.addEventListener("visibilitychange", cancelFallback, { once: true });
+  document.addEventListener("visibilitychange", () => clearTimeout(fallbackTimer), { once: true });
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-// formatDuration and escapeHtml are in helpers.js (shared with audiobook.js)
-
-function timeAgo(date) {
-  const diff = (Date.now() - date) / 1000;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
-  return date.toLocaleDateString();
-}
-
-
-// ─── Pull-to-Refresh ──────────────────────────────────────────────────────────
-(function initPullToRefresh() {
-  const THRESHOLD = 72;    // px of pull needed to trigger
-  const MAX_PULL  = 100;   // max visual travel
-  let startY = 0;
-  let pulling = false;
-  let indicator = null;
-
-  function getIndicator() {
-    if (!indicator) indicator = document.getElementById('ptr-indicator');
-    return indicator;
-  }
-
-  document.addEventListener('touchstart', e => {
-    // Only activate on feed tab, when scrolled to very top
-    const feedSection = document.getElementById('section-feed');
-    if (!feedSection || feedSection.hidden) return;
-    if (window.scrollY > 2) return;
-    startY = e.touches[0].clientY;
-    pulling = true;
-  }, { passive: true });
-
-  document.addEventListener('touchmove', e => {
-    if (!pulling) return;
-    const dy = e.touches[0].clientY - startY;
-    if (dy <= 0) { pulling = false; return; }
-
-    const travel = Math.min(dy * 0.45, MAX_PULL);
-    const progress = travel / MAX_PULL;                // 0 → 1
-    const scaleY = 1 + progress * 0.65;               // stretch tall
-    const scaleX = 1 - progress * 0.22;               // squish wide
-
-    const ind = getIndicator();
-    if (!ind) return;
-
-    // ptr-stretching disables CSS transitions so the icon tracks the finger instantly
-    ind.classList.add('ptr-pulling', 'ptr-stretching');
-    ind.style.transform = `translateX(-50%) translateY(${travel}px) scaleY(${scaleY}) scaleX(${scaleX})`;
-    ind.classList.toggle('ptr-ready', travel >= THRESHOLD * 0.45);
-  }, { passive: true });
-
-  document.addEventListener('touchend', async () => {
-    if (!pulling) return;
-    pulling = false;
-
-    const ind = getIndicator();
-    if (!ind) return;
-
-    const wasReady = ind.classList.contains('ptr-ready');
-    ind.classList.remove('ptr-ready', 'ptr-stretching'); // re-enable spring transition
-
-    // rAF ensures the transition is active before we set the snap-back target
-    requestAnimationFrame(() => {
-      ind.style.transform = 'translateX(-50%) translateY(0px) scaleY(1) scaleX(1)';
-      if (!wasReady) ind.classList.remove('ptr-pulling');
-    });
-
-    if (wasReady) {
-      // Wait for spring snap-back to finish, then switch to rainbow spin
-      await new Promise(r => setTimeout(r, 400));
-      ind.classList.remove('ptr-pulling');
-      ind.classList.add('ptr-spinning');
-      await loadFeed(true);
-      ind.classList.remove('ptr-spinning');
-    }
-  });
-})();
-
-loadFeed();
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+renderChannelGrid();
+renderTally();
+dismissSplash();
 
 // ─── Call a Friend ─────────────────────────────────────────────────────────────
 const CAF_NAMES = ["Eric", "Cole", "Melis", "Tyler", "Kohki", "Blake", "Dad", "Mom", "Minsong", "Popov"];
