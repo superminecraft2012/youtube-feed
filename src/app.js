@@ -128,6 +128,50 @@ function parseRSS(xml, handle) {
 const RSS_CACHE_KEY = "rss-feed-cache";
 const RSS_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
+const DURATIONS_KEY = "video-durations";
+const MIN_DURATION_SECONDS = 120; // hide anything under 2 minutes
+const DURATION_BATCH_SIZE = 50;
+const DURATION_FETCH_LIMIT = 50; // cap how many newest videos we enrich per session
+
+function loadDurationsCache() {
+  try { return JSON.parse(localStorage.getItem(DURATIONS_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function saveDurationsCache(cache) {
+  try { localStorage.setItem(DURATIONS_KEY, JSON.stringify(cache)); }
+  catch {}
+}
+
+function applyCachedDurations(videos) {
+  const cache = loadDurationsCache();
+  for (const v of videos) {
+    if (cache[v.id] != null) v.duration = cache[v.id];
+  }
+}
+
+async function enrichDurationsInBackground() {
+  const cache = loadDurationsCache();
+  const recent = allVideos.slice(0, DURATION_FETCH_LIMIT);
+  const missing = recent.filter(v => v.duration == null).map(v => v.id);
+  if (missing.length === 0) return;
+
+  for (let i = 0; i < missing.length; i += DURATION_BATCH_SIZE) {
+    const batch = missing.slice(i, i + DURATION_BATCH_SIZE);
+    try {
+      const res = await fetch(`/.netlify/functions/duration?ids=${batch.join(",")}`);
+      if (!res.ok) continue;
+      const { durations } = await res.json();
+      Object.assign(cache, durations);
+      for (const v of allVideos) {
+        if (durations[v.id] != null) v.duration = durations[v.id];
+      }
+      saveDurationsCache(cache);
+      renderFeed();
+    } catch {}
+  }
+}
+
 async function loadFeed(forceRefresh = false) {
   const statusEl = document.getElementById("status");
   const feed = document.getElementById("feed");
@@ -142,10 +186,12 @@ async function loadFeed(forceRefresh = false) {
         const { videos, fetchedAt } = JSON.parse(cached);
         if (Date.now() - fetchedAt < RSS_CACHE_TTL) {
           allVideos = videos.map(v => ({ ...v, published: new Date(v.published) }));
+          applyCachedDurations(allVideos);
           renderFilterPills();
           renderFeed();
           renderTally();
           dismissSplash();
+          enrichDurationsInBackground();
           return;
         }
       }
@@ -168,6 +214,8 @@ async function loadFeed(forceRefresh = false) {
       .flatMap(([handle, xml]) => parseRSS(xml, handle))
       .filter(v => v.id && v.title)
       .sort((a, b) => b.published - a.published);
+
+    applyCachedDurations(allVideos);
 
     // Cache the results
     try {
@@ -193,6 +241,7 @@ async function loadFeed(forceRefresh = false) {
   renderFilterPills();
   renderFeed();
   renderTally();
+  enrichDurationsInBackground();
 
   if (failed > 0) {
     statusEl.textContent = `${failed} channel(s) failed to load`;
@@ -206,8 +255,9 @@ function renderFilterPills() {
   const bar = document.getElementById("filter-bar");
   const pillsEl = document.getElementById("filter-pills");
 
-  // Only show channels that actually returned videos
-  const seenHandles = new Set(allVideos.map(v => v.handle));
+  // Only show channels that actually returned videos (after shorts filter)
+  const visible = allVideos.filter(v => v.duration == null || Number(v.duration) >= MIN_DURATION_SECONDS);
+  const seenHandles = new Set(visible.map(v => v.handle));
   const channels = CHANNELS
     .filter(c => seenHandles.has(c.handle))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -262,9 +312,10 @@ document.getElementById("feed").addEventListener("click", e => {
 // ─── Render ────────────────────────────────────────────────────────────────────
 function renderFeed() {
   const feed = document.getElementById("feed");
-  const videos = activeFilter
+  const base = activeFilter
     ? allVideos.filter(v => v.handle === activeFilter)
     : allVideos;
+  const videos = base.filter(v => v.duration == null || Number(v.duration) >= MIN_DURATION_SECONDS);
 
   if (videos.length === 0) {
     feed.innerHTML = `<p class="empty">No videos for this channel.</p>`;
