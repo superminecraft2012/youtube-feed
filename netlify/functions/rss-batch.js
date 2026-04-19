@@ -24,7 +24,7 @@ export async function handler(event) {
       try {
         const channelId = await resolveChannelId(handle);
         const rssRes = await fetchWithRetry(
-          `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
+          `https://www.youtube.com/feeds/videos.xml?playlist_id=UULF${channelId.slice(2)}`
         );
         if (!rssRes.ok) throw new Error(`RSS fetch failed: ${rssRes.status}`);
         results[handle] = await rssRes.text();
